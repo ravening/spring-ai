@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepRelay streaming demo</title>
+<style>
+    :root {
+        color-scheme: light dark;
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f4f6f8;
+        color: #17202a;
+    }
+
+    main {
+        width: min(760px, calc(100vw - 2rem));
+        padding: 1.5rem;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 12px 40px rgb(15 23 42 / 12%);
+    }
+
+    form {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    input {
+        flex: 1 1 320px;
+        padding: 0.7rem 0.8rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font: inherit;
+    }
+
+    button {
+        padding: 0.7rem 1rem;
+        border: 0;
+        border-radius: 8px;
+        background: #2563eb;
+        color: #ffffff;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    button:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+
+    #stop {
+        background: #475569;
+    }
+
+    #meta {
+        margin: 0.75rem 0 0.25rem;
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+
+    pre {
+        margin: 0;
+        min-height: 10rem;
+        padding: 1rem;
+        border-radius: 8px;
+        background: #0f172a;
+        color: #e2e8f0;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+</style>
+</head>
+<body>
+<main>
+    <h1>DeepRelay streaming demo</h1>
+    <form id="form">
+        <input id="message" value="Write a short story about a robot learning to surf." aria-label="Prompt">
+        <button type="submit" id="send">Send</button>
+        <button type="button" id="stop" disabled>Stop</button>
+    </form>
+    <p id="meta">Ready.</p>
+    <pre id="output"></pre>
+</main>
+<script>
+    const form = document.getElementById("form");
+    const input = document.getElementById("message");
+    const output = document.getElementById("output");
+    const meta = document.getElementById("meta");
+    const stopButton = document.getElementById("stop");
+    let controller;
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        controller = new AbortController();
+        output.textContent = "";
+        meta.textContent = "Connecting...";
+        stopButton.disabled = false;
+        const started = performance.now();
+
+        try {
+            const url = `/api/chat/stream?message=${encodeURIComponent(input.value)}`;
+            const response = await fetch(url, { signal: controller.signal });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            meta.textContent = "Streaming...";
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) {
+                    break;
+                }
+                buffer += decoder.decode(value, { stream: true });
+                const events = buffer.split(/\r?\n\r?\n/);
+                buffer = events.pop();
+                for (const event of events) {
+                    for (const line of event.split(/\r?\n/)) {
+                        if (!line.startsWith("data:")) {
+                            continue;
+                        }
+                        const chunk = line.slice(5);
+                        if (chunk) {
+                            output.textContent += chunk;
+                            meta.textContent = `Streaming... ${((performance.now() - started) / 1000).toFixed(1)}s, ${output.textContent.length} chars`;
+                        }
+                    }
+                }
+            }
+
+            meta.textContent = `Done in ${((performance.now() - started) / 1000).toFixed(1)}s, ${output.textContent.length} chars`;
+        } catch (error) {
+            meta.textContent = error.name === "AbortError" ? "Stopped." : `Error: ${error.message}`;
+        } finally {
+            stopButton.disabled = true;
+        }
+    });
+
+    stopButton.addEventListener("click", () => controller?.abort());
+</script>
+</body>
+</html>

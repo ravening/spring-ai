@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: deeprelay-spring-ai
+  ai:
+    openai:
+      base-url: https://api.deeprelay.ai/v1
+      api-key: ${DEEPRELAY_API_KEY}
+      chat:
+        model: ${DEEPRELAY_MODEL:deeprelay/deepseek-v4.1-flash}
+        reasoning-effort: ${DEEPRELAY_REASONING_EFFORT:none} # none, minimal, low, medium, high, xhigh
