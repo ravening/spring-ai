@@ -42,7 +42,13 @@
             <form id="chat-form" class="composer">
                 <textarea id="chat-input" rows="2"
                           placeholder="Ask about a support ticket, the weather, inventory, FX or shipping..."></textarea>
-                <button id="chat-send" type="submit">Send</button>
+                <div class="composer-actions">
+                    <label class="stream-toggle" title="Stream the answer token by token">
+                        <input id="chat-stream" type="checkbox">
+                        Stream
+                    </label>
+                    <button id="chat-send" type="submit">Send</button>
+                </div>
             </form>
         </section>
 

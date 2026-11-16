@@ -14,6 +14,7 @@ const els = {
     chatForm: document.getElementById("chat-form"),
     chatInput: document.getElementById("chat-input"),
     chatSend: document.getElementById("chat-send"),
+    chatStream: document.getElementById("chat-stream"),
     agentForm: document.getElementById("agent-form"),
     agentInput: document.getElementById("agent-input"),
     agentRun: document.getElementById("agent-run"),
@@ -331,14 +332,18 @@ async function sendChat(event) {
     const thinking = addThinking();
 
     try {
-        const data = await api("/api/chat", {
-            method: "POST",
-            body: JSON.stringify({ message, conversationId: state.conversationId || null })
-        });
-        state.conversationId = data.conversationId;
-        persistConversation();
-        thinking.remove();
-        addMessage("assistant", data.answer, { toolCalls: data.toolCalls || [] });
+        if (els.chatStream.checked) {
+            await streamChat(message, thinking);
+        } else {
+            const data = await api("/api/chat", {
+                method: "POST",
+                body: JSON.stringify({ message, conversationId: state.conversationId || null })
+            });
+            state.conversationId = data.conversationId;
+            persistConversation();
+            thinking.remove();
+            addMessage("assistant", data.answer, { toolCalls: data.toolCalls || [] });
+        }
         loadConversations();
     } catch (error) {
         thinking.remove();
@@ -346,6 +351,133 @@ async function sendChat(event) {
     } finally {
         setBusy(false);
         els.chatInput.focus();
+    }
+}
+
+/**
+ * Consumes the SSE chat stream: a `conversation` event first, plain `data` tokens
+ * as the answer arrives, then a `tool_calls` event with the trace as JSON.
+ */
+async function streamChat(message, thinking) {
+    const response = await fetch("/api/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, conversationId: state.conversationId || null })
+    });
+    if (!response.ok) {
+        const text = await response.text();
+        let detail = text;
+        try {
+            const body = JSON.parse(text);
+            detail = body.error || body.message || text;
+        } catch (error) {
+            // keep the raw response text
+        }
+        throw new Error(detail || `Request failed (${response.status})`);
+    }
+    if (!response.body) {
+        throw new Error("This browser does not support response streams.");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let answer = "";
+    let toolCalls = [];
+    let bubble = null;
+    let meta = null;
+    let finalized = false;
+
+    function ensureBubble() {
+        if (bubble) {
+            return;
+        }
+        thinking.remove();
+        const wrapper = document.createElement("article");
+        wrapper.className = "msg assistant";
+        meta = document.createElement("div");
+        meta.className = "msg-meta";
+        meta.textContent = "Agent";
+        bubble = document.createElement("div");
+        bubble.className = "bubble";
+        wrapper.append(meta, bubble);
+        els.chatMessages.append(wrapper);
+    }
+
+    function finalize() {
+        if (finalized) {
+            return;
+        }
+        finalized = true;
+        ensureBubble();
+        renderMarkdown(bubble, answer);
+        if (toolCalls.length > 0) {
+            const count = document.createElement("span");
+            count.textContent = toolCalls.length + " tool call" + (toolCalls.length === 1 ? "" : "s");
+            meta.append(count);
+            bubble.append(renderToolCalls(toolCalls));
+        }
+        scrollChat();
+    }
+
+    function handleEvent(eventName, data) {
+        if (eventName === "conversation") {
+            state.conversationId = data;
+            persistConversation();
+        } else if (eventName === "tool_calls") {
+            try {
+                toolCalls = JSON.parse(data) || [];
+            } catch (error) {
+                toolCalls = [];
+            }
+            finalize();
+        } else if (eventName === "error") {
+            throw new Error(data || "Stream failed");
+        } else {
+            answer += data;
+            ensureBubble();
+            renderMarkdown(bubble, answer);
+            scrollChat();
+        }
+    }
+
+    function consumeFrame(frame) {
+        const lines = frame.replaceAll("\r", "").split("\n");
+        let eventName = "message";
+        const dataLines = [];
+        lines.forEach((line) => {
+            if (line.startsWith("event:")) {
+                eventName = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+                dataLines.push(line.slice(5).replace(/^ /, ""));
+            }
+        });
+        if (dataLines.length > 0) {
+            handleEvent(eventName, dataLines.join("\n"));
+        }
+    }
+
+    try {
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) {
+                break;
+            }
+            buffer += decoder.decode(value, { stream: true });
+            let boundary = buffer.indexOf("\n\n");
+            while (boundary !== -1) {
+                consumeFrame(buffer.slice(0, boundary));
+                buffer = buffer.slice(boundary + 2);
+                boundary = buffer.indexOf("\n\n");
+            }
+        }
+        buffer += decoder.decode();
+        if (buffer.trim()) {
+            consumeFrame(buffer);
+        }
+        finalize();
+    } finally {
+        reader.releaseLock();
     }
 }
 

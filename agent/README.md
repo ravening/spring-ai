@@ -157,6 +157,7 @@ The server also exposes the `memo://agent-demo/returns-policy` resource.
 | Method | Path | Purpose |
 |---|---|---|
 | `POST` | `/api/chat` | chat with memory and all tools |
+| `POST` | `/api/chat/stream` | SSE stream of the chat answer (tokens + `tool_calls` event) |
 | `POST` | `/api/agent/run` | planner + specialist agents |
 | `GET` | `/api/conversations` | stored conversations with title, time and message count |
 | `GET` | `/api/conversations/{id}` | full message history for one conversation |

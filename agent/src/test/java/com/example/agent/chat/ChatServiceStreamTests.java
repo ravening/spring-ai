@@ -6,7 +6,6 @@ import java.util.function.Consumer;
 
 import com.example.agent.core.AgentTrace;
 import com.example.agent.tools.ToolCatalog;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -53,7 +52,7 @@ class ChatServiceStreamTests {
         when(requestSpec.stream()).thenReturn(streamSpec);
         when(streamSpec.content()).thenReturn(Flux.just("Hello", " world"));
 
-        ChatService service = new ChatService(chatClient, toolCatalog, new ObjectMapper().findAndRegisterModules());
+        ChatService service = new ChatService(chatClient, toolCatalog);
         Flux<ServerSentEvent<String>> stream = service.stream(new ChatRequest("hi", "chat-1"));
 
         // Simulate a tool call being traced while the model is streaming.
@@ -66,16 +65,18 @@ class ChatServiceStreamTests {
 
         List<ServerSentEvent<String>> events = stream.collectList().block();
 
-        assertThat(events).hasSize(3);
-        assertThat(events.get(0).data()).isEqualTo("Hello");
-        assertThat(events.get(1).data()).isEqualTo(" world");
-        assertThat(events.get(2).event()).isEqualTo("tool_calls");
-        assertThat(events.get(2).data()).contains("calculator");
+        assertThat(events).hasSize(4);
+        assertThat(events.get(0).event()).isEqualTo("conversation");
+        assertThat(events.get(0).data()).isEqualTo("chat-1");
+        assertThat(events.get(1).data()).isEqualTo("Hello");
+        assertThat(events.get(2).data()).isEqualTo(" world");
+        assertThat(events.get(3).event()).isEqualTo("tool_calls");
+        assertThat(events.get(3).data()).contains("calculator");
     }
 
     @Test
     void rejectsBlankMessage() {
-        ChatService service = new ChatService(chatClient, toolCatalog, new ObjectMapper().findAndRegisterModules());
+        ChatService service = new ChatService(chatClient, toolCatalog);
         assertThatThrownBy(() -> service.stream(new ChatRequest(" ", "chat-1")))
                 .isInstanceOf(ResponseStatusException.class);
     }

@@ -27,14 +27,16 @@ public class ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
 
+    // This module has no auto-configured ObjectMapper bean, so create one with the
+    // Java-time modules needed to serialize ToolCallRecord's Instant fields.
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
+
     private final ChatClient chatClient;
     private final ToolCatalog toolCatalog;
-    private final ObjectMapper objectMapper;
 
-    public ChatService(ChatClient assistantChatClient, ToolCatalog toolCatalog, ObjectMapper objectMapper) {
+    public ChatService(ChatClient assistantChatClient, ToolCatalog toolCatalog) {
         this.chatClient = assistantChatClient;
         this.toolCatalog = toolCatalog;
-        this.objectMapper = objectMapper;
     }
 
     public ChatResponse chat(ChatRequest request) {
@@ -60,9 +62,10 @@ public class ChatService {
     }
 
     /**
-     * Streams the assistant answer as Server-Sent Events. Text tokens are emitted as
-     * ordinary {@code data} events; a final {@code tool_calls} event carries the tool
-     * trace as JSON so the UI can render it exactly as it does for {@link #chat(ChatRequest)}.
+     * Streams the assistant answer as Server-Sent Events. A leading {@code conversation}
+     * event carries the resolved conversation id, text tokens are ordinary {@code data}
+     * events, and a final {@code tool_calls} event carries the tool trace as JSON so the
+     * UI can render it exactly as it does for {@link #chat(ChatRequest)}.
      */
     public Flux<ServerSentEvent<String>> stream(ChatRequest request) {
         if (request == null || !StringUtils.hasText(request.message())) {
@@ -73,6 +76,11 @@ public class ChatService {
         AgentTrace trace = new AgentTrace(conversationId);
         trace.activeAgent("assistant");
         trace.event("chat_started", "User message received");
+
+        Flux<ServerSentEvent<String>> start = Flux.just(ServerSentEvent.<String>builder()
+                .event("conversation")
+                .data(conversationId)
+                .build());
 
         Flux<ServerSentEvent<String>> tokens = chatClient.prompt()
                 .user(request.message())
@@ -91,7 +99,7 @@ public class ChatService {
                     .build());
         });
 
-        return Flux.concat(tokens, completion)
+        return Flux.concat(start, tokens, completion)
                 .doOnError(ex -> trace.event("chat_failed", "Stream failed: " + ex.getMessage()))
                 .onErrorResume(ex -> Flux.just(ServerSentEvent.<String>builder()
                         .event("error")
@@ -101,7 +109,7 @@ public class ChatService {
 
     private String writeToolCalls(List<ToolCallRecord> toolCalls) {
         try {
-            return objectMapper.writeValueAsString(toolCalls);
+            return OBJECT_MAPPER.writeValueAsString(toolCalls);
         }
         catch (JsonProcessingException ex) {
             log.warn("Could not serialize tool calls for streaming response", ex);
