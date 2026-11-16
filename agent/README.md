@@ -222,6 +222,7 @@ Agent app (`application.yml`):
 | `AGENT_MCP_ENDPOINT` | `/mcp` |
 | `AGENT_CHAT_MEMORY_MAX_MESSAGES` | `40` |
 | `AGENT_MAX_PLAN_STEPS` | `4` |
+| `AGENT_PARALLEL_STEPS` | `false` |
 | `AGENT_RAG_ENABLED` | `true` |
 | `AGENT_RAG_TOP_K` | `4` |
 | `AGENT_RAG_SIMILARITY_THRESHOLD` | `0.25` |
@@ -250,6 +251,9 @@ model so it does not need an API key.
   refer to an earlier multi-agent task, and the conversations sidebar can reopen
   or delete any stored conversation.
 - MCP client connections are lazy and re-established on failure.
+- Plan steps run sequentially by default. Set `AGENT_PARALLEL_STEPS=true` to run them on a
+  bounded executor (up to 4 at once) and get results back in plan order. Parallel steps do
+  not see each other's output, so it suits plans made of independent research tasks.
 - The model must support OpenAI-style tool calling. If it does not, tool calls
   will not happen even though `/api/tools` lists them.
 - The included tools use demo data only.

@@ -50,6 +50,7 @@ agent:
       max-messages: ${AGENT_CHAT_MEMORY_MAX_MESSAGES:40}
   agents:
     max-plan-steps: ${AGENT_MAX_PLAN_STEPS:4}
+    parallel: ${AGENT_PARALLEL_STEPS:false}
   rag:
     enabled: ${AGENT_RAG_ENABLED:true}
     top-k: ${AGENT_RAG_TOP_K:4}

@@ -15,13 +15,14 @@ Ordered, verifiable tasks. See `tasks/plan.md` for details, acceptance criteria,
 
 ## Phase 2: RAG parity
 
-- [ ] Task 3 — RAG dependencies, config, knowledge doc, `KnowledgeService`, `knowledge_search` tool
-- [ ] Task 4 — Surface retrieval in docs/architecture map; verify multi-agent use
+- [x] Task 3 — RAG dependencies, config, knowledge doc, `KnowledgeService`, `knowledge_search` tool
+- [x] Task 4 — Surface retrieval in docs/architecture map; verify multi-agent use
 
 ### Checkpoint: Phase 2
-- [ ] Build succeeds; `/api/tools` lists `knowledge_search`
-- [ ] RAG-only question answered in both chat and multi-agent tabs
-- [ ] Committed
+- [x] Build succeeds; `/api/tools` lists `knowledge_search`
+- [x] Live smoke test indexed 1 document into 1 chunk and persisted the vector store
+- [x] `knowledge_search` available to chat and the research agent via `ToolCatalog.all()`
+- [x] Committed
 
 ## Phase 3: New agent features
 

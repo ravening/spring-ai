@@ -11,7 +11,8 @@ public final class AgentTrace {
     private final String conversationId;
     private final List<AgentEvent> events = new CopyOnWriteArrayList<>();
     private final List<ToolCallRecord> toolCalls = new CopyOnWriteArrayList<>();
-    private volatile String activeAgent = "assistant";
+    // Per-thread so parallel plan steps label their own events and tool calls.
+    private final ThreadLocal<String> activeAgent = ThreadLocal.withInitial(() -> "assistant");
 
     public AgentTrace(String conversationId) {
         this.conversationId = conversationId;
@@ -22,19 +23,19 @@ public final class AgentTrace {
     }
 
     public String activeAgent() {
-        return activeAgent;
+        return activeAgent.get();
     }
 
     public void activeAgent(String agent) {
-        this.activeAgent = agent;
+        this.activeAgent.set(agent);
     }
 
     public void event(String type, String message) {
-        event(type, activeAgent, message, null, null);
+        event(type, activeAgent(), message, null, null);
     }
 
     public void event(String type, String message, String detail) {
-        event(type, activeAgent, message, detail, null);
+        event(type, activeAgent(), message, detail, null);
     }
 
     public void event(String type, String agent, String message, String detail, Long durationMs) {
@@ -42,7 +43,7 @@ public final class AgentTrace {
     }
 
     public void toolCall(String origin, String name, String arguments, String result, long durationMs, boolean error) {
-        toolCalls.add(new ToolCallRecord(Instant.now(), activeAgent, origin, name,
+        toolCalls.add(new ToolCallRecord(Instant.now(), activeAgent(), origin, name,
                 truncate(arguments, 1500), truncate(result, 3000), durationMs, error));
     }
 
