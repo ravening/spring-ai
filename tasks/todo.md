@@ -4,13 +4,14 @@ Ordered, verifiable tasks. See `tasks/plan.md` for details, acceptance criteria,
 
 ## Phase 1: Streaming parity
 
-- [ ] Task 1 — SSE chat endpoint (`POST /api/chat/stream`)
-- [ ] Task 2 — UI consumes the stream with a toggle
+- [x] Task 1 — SSE chat endpoint (`POST /api/chat/stream`)
+- [x] Task 2 — UI consumes the stream with a toggle
 
 ### Checkpoint: Phase 1
-- [ ] `mvn -q -DskipTests package` succeeds
-- [ ] `/api/chat` unchanged; streaming emits tokens + terminal `tool_calls` event
-- [ ] Committed
+- [x] `mvn -q -DskipTests package` succeeds
+- [x] `/api/chat` unchanged; streaming emits `conversation`, tokens and terminal `tool_calls` event
+- [x] Verified live with curl: correct SSE framing, headers and error event
+- [x] Committed
 
 ## Phase 2: RAG parity
 

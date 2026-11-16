@@ -11,7 +11,8 @@ This repository contains two Spring AI projects:
 
 The `agent/` project is the newer demo. It includes:
 
-- Chat with conversation memory and tool calling
+- Chat with conversation memory, tool calling and optional SSE streaming
+- A local RAG knowledge base (vector store + MiniLM embeddings) exposed as a tool
 - Local Spring AI `@Tool` methods
 - An MCP server with weather, inventory, FX and shipping tools
 - An MCP client with discovery, retry and reconnect

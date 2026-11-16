@@ -15,6 +15,16 @@ spring:
         repository:
           jdbc:
             initialize-schema: always
+    model:
+      embedding: transformers
+    embedding:
+      transformer:
+        cache:
+          directory: ${AGENT_EMBEDDING_CACHE_DIR:data/model-cache}
+        tokenizer:
+          uri: https://raw.githubusercontent.com/spring-projects/spring-ai/v2.0.2/models/spring-ai-transformers/src/main/resources/onnx/all-MiniLM-L6-v2/tokenizer.json
+        onnx:
+          model-uri: https://media.githubusercontent.com/media/spring-projects/spring-ai/refs/tags/v2.0.2/models/spring-ai-transformers/src/main/resources/onnx/all-MiniLM-L6-v2/model.onnx
     openai:
       base-url: ${DEEPRELAY_BASE_URL:https://api.deeprelay.ai/v1}
       api-key: ${DEEPRELAY_API_KEY}
@@ -40,6 +50,13 @@ agent:
       max-messages: ${AGENT_CHAT_MEMORY_MAX_MESSAGES:40}
   agents:
     max-plan-steps: ${AGENT_MAX_PLAN_STEPS:4}
+  rag:
+    enabled: ${AGENT_RAG_ENABLED:true}
+    top-k: ${AGENT_RAG_TOP_K:4}
+    similarity-threshold: ${AGENT_RAG_SIMILARITY_THRESHOLD:0.25}
+    chunk-size: ${AGENT_RAG_CHUNK_SIZE:800}
+    vector-store-file: ${AGENT_RAG_VECTOR_STORE_FILE:data/agent-vector-store.json}
+    classpath-docs-location: classpath*:knowledge/**/*
 
 logging:
   level:

@@ -91,13 +91,13 @@ const nodes = {
     local: {
         eyebrow: "Tools",
         title: "Local tools",
-        subtitle: "Four in-process Spring AI @Tool methods.",
-        description: "Calculator, current time, support-ticket lookup and support-ticket search run directly in the agent app. TracingToolCallback wraps each one so the UI sees arguments, results and duration.",
+        subtitle: "Five in-process Spring AI @Tool methods.",
+        description: "Calculator, current time, support-ticket lookup, support-ticket search and knowledge_search run directly in the agent app. knowledge_search queries a local vector store of handbook documents built with the MiniLM embedding model. TracingToolCallback wraps each tool so the UI sees arguments, results and duration.",
         io: [
             ["In", "Model tool call with JSON arguments"],
             ["Out", "String result + trace record"]
         ],
-        files: ["LocalTools.java", "LocalToolCatalog.java", "TracingToolCallback.java"]
+        files: ["LocalTools.java", "LocalToolCatalog.java", "KnowledgeService.java", "TracingToolCallback.java"]
     },
     mcpClient: {
         eyebrow: "MCP",

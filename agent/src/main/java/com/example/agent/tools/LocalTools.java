@@ -5,8 +5,11 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
+import com.example.agent.knowledge.KnowledgeService;
+import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -17,6 +20,12 @@ public class LocalTools {
     private static final Map<String, String> TICKETS = tickets();
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
+
+    private final KnowledgeService knowledgeService;
+
+    public LocalTools(KnowledgeService knowledgeService) {
+        this.knowledgeService = knowledgeService;
+    }
 
     @Tool(name = "calculator", description = "Perform basic arithmetic on two numbers. Use this for every calculation instead of doing math yourself.")
     public String calculator(
@@ -83,6 +92,27 @@ public class LocalTools {
             }
         });
         return result.isEmpty() ? "No tickets matched '" + query + "'." : result.toString().trim();
+    }
+
+    @Tool(name = "knowledge_search", description = "Search the internal knowledge base for policies, procedures and handbook topics. Use this for questions that local and MCP tools cannot answer.")
+    public String knowledgeSearch(
+            @ToolParam(description = "What to look for in the knowledge base", required = true) String query,
+            @ToolParam(description = "Maximum number of passages (default 4)", required = false) Integer topK) {
+
+        int limit = (topK == null || topK < 1) ? 4 : Math.min(topK, 12);
+        List<Document> documents = knowledgeService.search(query, limit);
+        if (documents.isEmpty()) {
+            return "No knowledge-base passages matched '" + query + "'.";
+        }
+        StringBuilder result = new StringBuilder("Knowledge base passages:\n\n");
+        for (Document document : documents) {
+            Object source = document.getMetadata().get("source");
+            result.append("Source: ").append(source == null ? "unknown" : source).append('\n');
+            String text = document.getText() == null ? "" : document.getText();
+            result.append(text.length() > 2000 ? text.substring(0, 2000) + "... [truncated]" : text)
+                    .append("\n\n");
+        }
+        return result.toString().trim();
     }
 
     private static String format(double value) {

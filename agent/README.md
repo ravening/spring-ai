@@ -2,9 +2,10 @@
 
 A small, self-contained demo that goes beyond a chat box:
 
-- **Chat with persistent memory** and tool calling
+- **Chat with persistent memory** and tool calling, with an optional **SSE streaming** mode
 - **Saved conversation history** that survives restarts and can be reopened or deleted
-- **Local `@Tool` methods** (calculator, clock, support tickets)
+- **Local `@Tool` methods** (calculator, clock, support tickets, knowledge search)
+- **RAG knowledge base** backed by a local vector store and the bundled handbook
 - **MCP server** exposing inventory, shipping, FX and weather tools
 - **MCP client** that discovers and calls those tools over streamable HTTP
 - **Multi-step agent run** with a planner and specialist agents
@@ -119,6 +120,10 @@ Chat, single tool:
 
 > What is the weather in Berlin for the next 2 days?
 
+Chat, knowledge-base retrieval (toggle **Stream** to watch the answer arrive token by token):
+
+> What is the refund window for opened software, and which team handles returns escalation?
+
 Chat, multiple tools:
 
 > Check stock for SKU-1001 and quote expedited shipping of 3 kg to India.
@@ -140,6 +145,7 @@ critic either approves it or asks the writer for one revision.
 | `current_time` | current date/time in UTC, optionally a zone |
 | `support_ticket_lookup` | look up a ticket by id |
 | `support_ticket_search` | search demo tickets by keyword |
+| `knowledge_search` | search the RAG knowledge base of internal policies and handbook topics |
 
 ## MCP server tools
 
@@ -216,6 +222,12 @@ Agent app (`application.yml`):
 | `AGENT_MCP_ENDPOINT` | `/mcp` |
 | `AGENT_CHAT_MEMORY_MAX_MESSAGES` | `40` |
 | `AGENT_MAX_PLAN_STEPS` | `4` |
+| `AGENT_RAG_ENABLED` | `true` |
+| `AGENT_RAG_TOP_K` | `4` |
+| `AGENT_RAG_SIMILARITY_THRESHOLD` | `0.25` |
+| `AGENT_RAG_CHUNK_SIZE` | `800` |
+| `AGENT_RAG_VECTOR_STORE_FILE` | `data/agent-vector-store.json` |
+| `AGENT_EMBEDDING_CACHE_DIR` | `data/model-cache` |
 
 MCP server (`application-mcp.yml`, profile `mcp`):
 
@@ -241,3 +253,8 @@ model so it does not need an API key.
 - The model must support OpenAI-style tool calling. If it does not, tool calls
   will not happen even though `/api/tools` lists them.
 - The included tools use demo data only.
+- On first start with RAG enabled, the local MiniLM embedding model (~87 MB) is
+  downloaded into `data/model-cache`. The knowledge documents in
+  `src/main/resources/knowledge/` are then indexed into `data/agent-vector-store.json`
+  and reused on later starts. Set `AGENT_RAG_ENABLED=false` to skip all of this;
+  `knowledge_search` then returns no results.
