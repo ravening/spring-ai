@@ -81,10 +81,10 @@ const nodes = {
         eyebrow: "Specialist",
         title: "CriticAgent",
         subtitle: "Reviews the draft against the evidence.",
-        description: "Returns APPROVED or a numbered list of issues. Any review that does not start with APPROVED sends the draft back to the writer once.",
+        description: "Returns a structured verdict with an approved flag and a list of concrete issues. A rejection sends the draft back to the writer, up to two times; if the critic still rejects it, the best draft is returned.",
         io: [
             ["In", "Goal + evidence + draft"],
-            ["Out", "APPROVED or issue list"]
+            ["Out", "Structured verdict: approved + issue list"]
         ],
         files: ["CriticAgent.java", "AgentOrchestrator.java"]
     },

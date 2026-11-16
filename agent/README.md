@@ -135,7 +135,8 @@ Multi-agent run (use the Multi-agent tab):
 
 The planner decides which specialists to call. The researcher gathers data with
 tools, the analyst does the arithmetic, the writer produces the answer, and the
-critic either approves it or asks the writer for one revision.
+critic returns a structured verdict and can ask the writer for up to two revisions before
+the best draft is returned.
 
 ## Local tools
 

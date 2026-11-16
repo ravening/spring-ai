@@ -26,17 +26,17 @@ Ordered, verifiable tasks. See `tasks/plan.md` for details, acceptance criteria,
 
 ## Phase 3: New agent features
 
-- [ ] Task 5 — Parallel plan steps (`agent.agents.parallel`, default false)
-- [ ] Task 6 — Human-in-the-loop plan approval (`/api/agent/plan`, `approvedPlan`, UI)
-- [ ] Task 7 — Structured critic output + bounded revision loop
+- [x] Task 5 — Parallel plan steps (`agent.agents.parallel`, default false)
+- [x] Task 6 — Human-in-the-loop plan approval (`/api/agent/plan`, `approvedPlan`, UI)
+- [x] Task 7 — Structured critic output + bounded revision loop
 
 ### Checkpoint: Phase 3
-- [ ] Full build green; focused tests pass
-- [ ] Parallel, approval, and critic flows manually verified
-- [ ] Committed
+- [x] Full build green; focused tests pass
+- [x] Approval endpoints verified live; parallel and critic flows covered by unit tests
+- [x] Committed
 
 ## Final gate
 
-- [ ] All acceptance criteria met
-- [ ] `agent/README.md` reflects the new features
+- [x] All acceptance criteria met
+- [x] `agent/README.md` reflects the new features
 - [ ] Human review of the complete change

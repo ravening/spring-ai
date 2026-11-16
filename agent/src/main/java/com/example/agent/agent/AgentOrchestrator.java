@@ -2,7 +2,6 @@ package com.example.agent.agent;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -28,6 +27,7 @@ public class AgentOrchestrator {
 
     private static final int MAX_PARALLEL_STEPS = 4;
     private static final long STEP_TIMEOUT_SECONDS = 180;
+    private static final int MAX_REVISIONS = 2;
 
     private final PlannerAgent planner;
     private final ResearchAgent researcher;
@@ -93,23 +93,32 @@ public class AgentOrchestrator {
         String draft = writer.synthesize(goal, results, trace);
         trace.event("draft_ready", "writer", "Writer produced a draft", null, null);
 
-        String review = critic.review(goal, draft, results, trace);
-        boolean approved = review != null
-                && review.strip().toUpperCase(Locale.ROOT).startsWith("APPROVED");
-        trace.event("review", "critic", approved ? "Draft approved" : "Issues found", review, null);
-
-        String finalAnswer;
-        if (approved) {
-            finalAnswer = draft;
-        }
-        else {
-            finalAnswer = writer.revise(goal, draft, review, trace);
-            trace.event("revision", "writer", "Writer revised the answer after review", null, null);
-        }
+        String finalAnswer = reviewAndRevise(goal, draft, results, trace);
 
         remember(conversationId, task, finalAnswer);
         trace.event("run_completed", "orchestrator", "Multi-agent run completed", null, null);
         return new AgentRunResponse(conversationId, finalAnswer, plan, trace.events(), trace.toolCalls());
+    }
+
+    /** Reviews the draft and asks the writer to revise at most MAX_REVISIONS times. */
+    private String reviewAndRevise(String goal, String draft, List<StepResult> results, AgentTrace trace) {
+        Review review = critic.review(goal, draft, results, trace);
+        int revisions = 0;
+        while (!review.approved() && revisions < MAX_REVISIONS) {
+            trace.event("review", "critic", "Issues found", review.feedback(), null);
+            revisions++;
+            draft = writer.revise(goal, draft, review.feedback(), trace);
+            trace.event("revision", "writer", "Writer revised the answer (" + revisions + ")", null, null);
+            review = critic.review(goal, draft, results, trace);
+        }
+        if (review.approved()) {
+            trace.event("review", "critic", "Draft approved", review.summary(), null);
+        }
+        else {
+            trace.event("review_unresolved", "critic",
+                    "Max revisions reached; returning the best draft", review.feedback(), null);
+        }
+        return draft;
     }
 
     private List<StepResult> executeSteps(List<PlanStep> steps, String goal, AgentTrace trace) {

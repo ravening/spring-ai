@@ -13,6 +13,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -44,7 +46,8 @@ class AgentOrchestratorApprovalTests {
         when(chatMemory.get("chat-1")).thenReturn(List.of());
         when(researcher.run(anyString(), anyString(), anyList(), any(AgentTrace.class))).thenReturn("facts");
         when(writer.synthesize(anyString(), anyList(), any(AgentTrace.class))).thenReturn("draft");
-        when(critic.review(anyString(), anyString(), anyList(), any(AgentTrace.class))).thenReturn("APPROVED");
+        when(critic.review(anyString(), anyString(), anyList(), any(AgentTrace.class)))
+                .thenReturn(new Review(true, "Ready", List.of()));
 
         AgentOrchestrator orchestrator = new AgentOrchestrator(
                 planner, researcher, analyst, writer, critic, chatMemory, 4, false);
@@ -55,6 +58,28 @@ class AgentOrchestratorApprovalTests {
         assertThat(response.plan()).isEqualTo(approved);
         assertThat(response.answer()).isEqualTo("draft");
         assertThat(response.events()).extracting("type").contains("plan_approved");
+    }
+
+    @Test
+    void persistentlyRejectingCriticCannotLoopForever() {
+        when(chatMemory.get("chat-1")).thenReturn(List.of());
+        when(planner.plan(anyString(), any(AgentTrace.class))).thenReturn(
+                new AgentPlan("Plan", List.of(new PlanStep("RESEARCHER", "Find facts"))));
+        when(researcher.run(anyString(), anyString(), anyList(), any(AgentTrace.class))).thenReturn("facts");
+        when(writer.synthesize(anyString(), anyList(), any(AgentTrace.class))).thenReturn("draft");
+        when(writer.revise(anyString(), anyString(), anyString(), any(AgentTrace.class))).thenReturn("revised draft");
+        when(critic.review(anyString(), anyString(), anyList(), any(AgentTrace.class)))
+                .thenReturn(new Review(false, "Needs work", List.of("Add a concrete number")));
+
+        AgentOrchestrator orchestrator = new AgentOrchestrator(
+                planner, researcher, analyst, writer, critic, chatMemory, 4, false);
+
+        AgentRunResponse response = orchestrator.run(new AgentRequest("task", "chat-1", null));
+
+        verify(writer, times(2)).revise(anyString(), anyString(), anyString(), any(AgentTrace.class));
+        verify(critic, times(3)).review(anyString(), anyString(), anyList(), any(AgentTrace.class));
+        assertThat(response.answer()).isEqualTo("revised draft");
+        assertThat(response.events()).extracting("type").contains("review_unresolved");
     }
 
     @Test

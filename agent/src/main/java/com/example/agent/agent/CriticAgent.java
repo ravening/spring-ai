@@ -21,14 +21,14 @@ public class CriticAgent {
                         Look for missing facts, unsupported claims, arithmetic mistakes,
                         contradictions and unclear wording.
 
-                        If the draft is ready, reply with exactly: APPROVED
-                        Otherwise return a numbered list of concrete issues to fix.
-                        Do not rewrite the draft.
+                        Return a structured verdict. Set approved to true only when the draft
+                        is ready. Otherwise list concrete issues to fix in the issues field
+                        and explain the decision in the summary field. Do not rewrite the draft.
                         """)
                 .build();
     }
 
-    public String review(String goal, String draft, List<StepResult> results, AgentTrace trace) {
+    public Review review(String goal, String draft, List<StepResult> results, AgentTrace trace) {
         trace.activeAgent("critic");
         String user = """
                 Goal:
@@ -41,9 +41,19 @@ public class CriticAgent {
                 %s
                 """.formatted(goal, AgentSupport.priorResults(results), draft);
 
-        return chatClient.prompt()
-                .user(user)
-                .call()
-                .content();
+        try {
+            Review review = chatClient.prompt()
+                    .user(user)
+                    .call()
+                    .entity(Review.class);
+            if (review != null) {
+                return review;
+            }
+        }
+        catch (Exception ex) {
+            trace.event("review_parse_failed", "critic", "Could not parse the critic's verdict",
+                    ex.getMessage(), null);
+        }
+        return new Review(false, "The critic's verdict could not be parsed.", List.of());
     }
 }
