@@ -534,6 +534,48 @@ code {
     cursor: pointer;
 }
 
+.plan-review {
+    margin-top: 0.9rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid #c7d2fe;
+    border-radius: 0.7rem;
+    background: var(--accent-soft);
+}
+
+.plan-review h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.9rem;
+}
+
+.plan-review ol {
+    margin: 0.4rem 0 0.8rem;
+    padding-left: 1.2rem;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.plan-review-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.plan-review-actions button {
+    border: 0;
+    border-radius: 0.6rem;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    background: var(--accent);
+    color: #fff;
+}
+
+.plan-review-actions button.ghost {
+    background: transparent;
+    color: var(--accent-strong);
+    border: 1px solid var(--line);
+}
+
 .progress {
     display: flex;
     align-items: center;

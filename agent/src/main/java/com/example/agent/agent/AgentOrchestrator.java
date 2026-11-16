@@ -57,6 +57,18 @@ public class AgentOrchestrator {
         this.parallel = parallel;
     }
 
+    /** Plans a task without executing any agent step, for human review in the UI. */
+    public AgentPlan plan(AgentRequest request) {
+        if (request == null || !StringUtils.hasText(request.task())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "task is required");
+        }
+        String conversationId = ConversationId.resolve(request.conversationId());
+        String task = request.task().trim();
+        AgentTrace trace = new AgentTrace(conversationId);
+        trace.event("plan_requested", "orchestrator", "Task: " + AgentSupport.truncate(task, 500), null, null);
+        return normalizePlan(planner.plan(buildGoal(conversationId, task), trace));
+    }
+
     public AgentRunResponse run(AgentRequest request) {
         if (request == null || !StringUtils.hasText(request.task())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "task is required");
@@ -68,7 +80,13 @@ public class AgentOrchestrator {
         trace.event("run_started", "orchestrator", "Task: " + AgentSupport.truncate(task, 500), null, null);
 
         String goal = buildGoal(conversationId, task);
-        AgentPlan plan = normalizePlan(planner.plan(goal, trace));
+        boolean approvedPlan = request.approvedPlan() != null;
+        AgentPlan plan = approvedPlan
+                ? normalizePlan(request.approvedPlan())
+                : normalizePlan(planner.plan(goal, trace));
+        if (approvedPlan) {
+            trace.event("plan_approved", "orchestrator", "Using the plan approved by the user", plan.summary(), null);
+        }
 
         List<StepResult> results = executeSteps(plan.steps(), goal, trace);
 

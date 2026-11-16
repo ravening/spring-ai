@@ -4,7 +4,9 @@ const state = {
     conversationId: localStorage.getItem(STORAGE_KEY) || "",
     conversations: [],
     busy: false,
-    mcp: null
+    mcp: null,
+    pendingPlan: null,
+    agentTask: ""
 };
 
 const els = {
@@ -18,6 +20,11 @@ const els = {
     agentForm: document.getElementById("agent-form"),
     agentInput: document.getElementById("agent-input"),
     agentRun: document.getElementById("agent-run"),
+    agentPlanFirst: document.getElementById("agent-plan-first"),
+    agentPlanReview: document.getElementById("agent-plan-review"),
+    agentPlanSteps: document.getElementById("agent-plan-steps"),
+    agentPlanApprove: document.getElementById("agent-plan-approve"),
+    agentPlanReject: document.getElementById("agent-plan-reject"),
     agentProgress: document.getElementById("agent-progress"),
     agentTimeline: document.getElementById("agent-timeline"),
     agentResult: document.getElementById("agent-result"),
@@ -317,6 +324,7 @@ function setBusy(busy) {
     state.busy = busy;
     els.chatSend.disabled = busy;
     els.agentRun.disabled = busy;
+    els.agentPlanApprove.disabled = busy;
 }
 
 async function sendChat(event) {
@@ -487,7 +495,72 @@ async function runAgents(event) {
     if (!task || state.busy) {
         return;
     }
+    state.agentTask = task;
+    if (els.agentPlanFirst.checked) {
+        await requestPlan(task);
+    } else {
+        await executeAgents(task, null);
+    }
+}
 
+async function requestPlan(task) {
+    setBusy(true);
+    clearPlanReview();
+    try {
+        const plan = await api("/api/agent/plan", {
+            method: "POST",
+            body: JSON.stringify({ task, conversationId: state.conversationId || null })
+        });
+        state.pendingPlan = plan;
+        renderPlanReview(plan);
+    } catch (error) {
+        renderTimelineError(error.message);
+    } finally {
+        setBusy(false);
+    }
+}
+
+function renderPlanReview(plan) {
+    els.agentPlanSteps.innerHTML = "";
+    const summary = document.createElement("p");
+    summary.className = "muted";
+    summary.textContent = plan.summary || "";
+    const steps = document.createElement("ol");
+    (plan.steps || []).forEach((step) => {
+        const item = document.createElement("li");
+        const agent = document.createElement("strong");
+        agent.textContent = step.agent;
+        item.append(agent, document.createTextNode(" - " + (step.instruction || "")));
+        steps.append(item);
+    });
+    els.agentPlanSteps.append(summary, steps);
+    els.agentPlanReview.classList.remove("hidden");
+}
+
+function clearPlanReview() {
+    state.pendingPlan = null;
+    els.agentPlanReview.classList.add("hidden");
+    els.agentPlanSteps.innerHTML = "";
+}
+
+async function approvePlan() {
+    if (!state.pendingPlan || state.busy) {
+        return;
+    }
+    const plan = state.pendingPlan;
+    clearPlanReview();
+    await executeAgents(state.agentTask, plan);
+}
+
+function rejectPlan() {
+    clearPlanReview();
+    els.agentTimeline.className = "timeline empty";
+    els.agentTimeline.textContent = "Plan rejected. Edit the task and try again.";
+    els.agentResult.className = "result empty";
+    els.agentResult.textContent = "No run yet.";
+}
+
+async function executeAgents(task, approvedPlan) {
     setBusy(true);
     els.agentProgress.classList.remove("hidden");
     els.agentTimeline.className = "timeline";
@@ -496,9 +569,13 @@ async function runAgents(event) {
     els.agentResult.innerHTML = "";
 
     try {
+        const body = { task, conversationId: state.conversationId || null };
+        if (approvedPlan) {
+            body.approvedPlan = approvedPlan;
+        }
         const data = await api("/api/agent/run", {
             method: "POST",
-            body: JSON.stringify({ task, conversationId: state.conversationId || null })
+            body: JSON.stringify(body)
         });
         state.conversationId = data.conversationId;
         persistConversation();
@@ -746,6 +823,8 @@ function resetChat() {
         return;
     }
     state.conversationId = "";
+    state.agentTask = "";
+    clearPlanReview();
     persistConversation();
     els.chatMessages.innerHTML = "";
     els.agentTimeline.className = "timeline empty";
@@ -773,6 +852,8 @@ async function init() {
     updateConversationLabel();
     els.chatForm.addEventListener("submit", sendChat);
     els.agentForm.addEventListener("submit", runAgents);
+    els.agentPlanApprove.addEventListener("click", approvePlan);
+    els.agentPlanReject.addEventListener("click", rejectPlan);
     els.refreshMcp.addEventListener("click", refreshMcp);
     els.newChat.addEventListener("click", resetChat);
 

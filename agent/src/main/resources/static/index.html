@@ -62,8 +62,22 @@
             <form id="agent-form" class="composer">
                 <textarea id="agent-input" rows="3"
                           placeholder="Example: Check SKU-1001 stock, calculate the cost of 3 units in INR with expedited shipping to India, and write an executive summary."></textarea>
-                <button id="agent-run" type="submit">Run agents</button>
+                <div class="composer-actions">
+                    <label class="stream-toggle" title="Show the plan before running it">
+                        <input id="agent-plan-first" type="checkbox">
+                        Review plan first
+                    </label>
+                    <button id="agent-run" type="submit">Run agents</button>
+                </div>
             </form>
+            <div id="agent-plan-review" class="plan-review hidden">
+                <h3>Proposed plan</h3>
+                <div id="agent-plan-steps"></div>
+                <div class="plan-review-actions">
+                    <button id="agent-plan-approve" type="button">Approve &amp; run</button>
+                    <button id="agent-plan-reject" class="ghost" type="button">Reject</button>
+                </div>
+            </div>
             <div id="agent-progress" class="progress hidden">
                 <span class="spinner"></span>
                 <span>Agents are working. This can take a few model calls.</span>

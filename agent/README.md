@@ -164,7 +164,8 @@ The server also exposes the `memo://agent-demo/returns-policy` resource.
 |---|---|---|
 | `POST` | `/api/chat` | chat with memory and all tools |
 | `POST` | `/api/chat/stream` | SSE stream of the chat answer (tokens + `tool_calls` event) |
-| `POST` | `/api/agent/run` | planner + specialist agents |
+| `POST` | `/api/agent/plan` | plan a task without executing it (for review) |
+| `POST` | `/api/agent/run` | planner + specialist agents; accepts an optional `approvedPlan` |
 | `GET` | `/api/conversations` | stored conversations with title, time and message count |
 | `GET` | `/api/conversations/{id}` | full message history for one conversation |
 | `DELETE` | `/api/conversations/{id}` | delete a conversation and its memory |
@@ -186,9 +187,14 @@ Agent request:
 ```json
 {
   "task": "Check SKU-1001 inventory and write an executive summary.",
-  "conversationId": "optional-stable-id"
+  "conversationId": "optional-stable-id",
+  "approvedPlan": { "summary": "...", "steps": [{ "agent": "RESEARCHER", "instruction": "..." }] }
 }
 ```
+
+`approvedPlan` is optional. When present, the planner is skipped and those steps are
+executed. The UI's **Review plan first** checkbox calls `/api/agent/plan`, shows the
+steps, and submits them as `approvedPlan` after you approve.
 
 Responses include the final answer plus every `toolCall` and agent `event`, so
 the UI can show what actually happened.

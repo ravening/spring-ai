@@ -1,6 +1,7 @@
 package com.example.agent.api;
 
 import com.example.agent.agent.AgentOrchestrator;
+import com.example.agent.agent.AgentPlan;
 import com.example.agent.agent.AgentRequest;
 import com.example.agent.agent.AgentRunResponse;
 import com.example.agent.chat.ChatRequest;
@@ -45,6 +46,11 @@ public class AgentController {
             HttpServletResponse response) {
         prepareStreamingResponse(response);
         return chatService.stream(request);
+    }
+
+    @PostMapping("/agent/plan")
+    public AgentPlan planAgent(@RequestBody AgentRequest request) {
+        return orchestrator.plan(request);
     }
 
     @PostMapping("/agent/run")
