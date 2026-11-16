@@ -267,5 +267,6 @@ model so it does not need an API key.
 - On first start with RAG enabled, the local MiniLM embedding model (~87 MB) is
   downloaded into `data/model-cache`. The knowledge documents in
   `src/main/resources/knowledge/` are then indexed into `data/agent-vector-store.json`
-  and reused on later starts. Set `AGENT_RAG_ENABLED=false` to skip all of this;
-  `knowledge_search` then returns no results.
+  and reused on later starts. Set `AGENT_RAG_ENABLED=false` to skip indexing and make
+  `knowledge_search` return no results (the embedding model is still initialized by
+  Spring AI, so the first-start download still happens).
