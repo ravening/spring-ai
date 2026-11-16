@@ -1,10 +1,49 @@
 spring:
   application:
     name: deeprelay-spring-ai
+  datasource:
+    url: jdbc:h2:file:./data/chat-memory;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
   ai:
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always
+    model:
+      embedding: transformers
     openai:
       base-url: https://api.deeprelay.ai/v1
       api-key: ${DEEPRELAY_API_KEY}
       chat:
         model: ${DEEPRELAY_MODEL:deeprelay/deepseek-v4.1-flash}
-        reasoning-effort: ${DEEPRELAY_REASONING_EFFORT:none} # none, minimal, low, medium, high, xhigh
+        reasoning-effort: ${DEEPRELAY_REASONING_EFFORT:none}
+    embedding:
+      transformer:
+        cache:
+          directory: data/model-cache
+        tokenizer:
+          uri: https://raw.githubusercontent.com/spring-projects/spring-ai/v2.0.2/models/spring-ai-transformers/src/main/resources/onnx/all-MiniLM-L6-v2/tokenizer.json
+        onnx:
+          model-uri: https://media.githubusercontent.com/media/spring-projects/spring-ai/refs/tags/v2.0.2/models/spring-ai-transformers/src/main/resources/onnx/all-MiniLM-L6-v2/model.onnx
+
+chat:
+  memory:
+    max-messages: ${CHAT_MEMORY_MAX_MESSAGES:80}
+
+rag:
+  top-k: ${RAG_TOP_K:4}
+  similarity-threshold: ${RAG_SIMILARITY_THRESHOLD:0.25}
+  chunk-size: ${RAG_CHUNK_SIZE:800}
+  vector-store-file: ${RAG_VECTOR_STORE_FILE:data/vector-store.json}
+  ingest-classpath-docs: ${RAG_INGEST_CLASSPATH_DOCS:true}
+  classpath-docs-location: classpath*:knowledge/**/*
+  ocr-enabled: ${RAG_OCR_ENABLED:true}
+  ocr-language: ${RAG_OCR_LANGUAGE:eng}
+  ocr-timeout-seconds: ${RAG_OCR_TIMEOUT_SECONDS:300}

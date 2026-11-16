@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Spring AI Agent Lab</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="topbar">
+    <div class="brand">
+        <span class="logo">AI</span>
+        <div>
+            <h1>Spring AI Agent Lab</h1>
+            <p>Tool calling, MCP and multi-agent orchestration</p>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <span id="mcp-badge" class="badge badge-muted">MCP: checking...</span>
+        <a class="ghost" href="/architecture.html">Architecture</a>
+        <button id="refresh-mcp" class="ghost" type="button">Refresh MCP</button>
+    </div>
+</header>
+
+<div class="layout">
+    <main class="main">
+        <nav class="tabs">
+            <button class="tab active" data-panel="chat-panel" type="button">Agent chat</button>
+            <button class="tab" data-panel="agent-panel" type="button">Multi-agent task</button>
+        </nav>
+
+        <section id="chat-panel" class="panel">
+            <div class="panel-head">
+                <div>
+                    <h2>Conversation</h2>
+                    <p>A single agent with conversation memory, local tools and MCP tools.</p>
+                    <p id="conversation-label" class="conversation"></p>
+                </div>
+                <button id="new-chat" class="ghost" type="button">New conversation</button>
+            </div>
+            <div id="chat-messages" class="messages"></div>
+            <form id="chat-form" class="composer">
+                <textarea id="chat-input" rows="2"
+                          placeholder="Ask about a support ticket, the weather, inventory, FX or shipping..."></textarea>
+                <button id="chat-send" type="submit">Send</button>
+            </form>
+        </section>
+
+        <section id="agent-panel" class="panel hidden">
+            <div class="panel-head">
+                <div>
+                    <h2>Multi-agent run</h2>
+                    <p>Planner, researcher, analyst, writer and critic collaborate on one task.</p>
+                </div>
+            </div>
+            <form id="agent-form" class="composer">
+                <textarea id="agent-input" rows="3"
+                          placeholder="Example: Check SKU-1001 stock, calculate the cost of 3 units in INR with expedited shipping to India, and write an executive summary."></textarea>
+                <button id="agent-run" type="submit">Run agents</button>
+            </form>
+            <div id="agent-progress" class="progress hidden">
+                <span class="spinner"></span>
+                <span>Agents are working. This can take a few model calls.</span>
+            </div>
+            <div class="agent-grid">
+                <div class="timeline-card">
+                    <h3>Trace</h3>
+                    <div id="agent-timeline" class="timeline empty">Run the agents to see the plan, delegations and tool calls.</div>
+                </div>
+                <div class="result-card">
+                    <h3>Final answer</h3>
+                    <div id="agent-result" class="result empty">No run yet.</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <aside class="sidebar">
+        <section class="side-card">
+            <h3>Conversations</h3>
+            <p class="muted">History is saved on the server and restored when you come back.</p>
+            <ul id="conversations" class="conversation-list"></ul>
+        </section>
+
+        <section class="side-card">
+            <h3>Tool inventory</h3>
+            <p class="muted">Local Spring AI <code>@Tool</code> methods and tools discovered over MCP.</p>
+            <h4>Local tools</h4>
+            <ul id="local-tools" class="tool-list"></ul>
+            <h4>MCP tools</h4>
+            <ul id="mcp-tools" class="tool-list"></ul>
+            <p id="mcp-error" class="error-text"></p>
+        </section>
+
+        <section class="side-card">
+            <h3>Try this</h3>
+            <button class="prompt-chip" data-target="chat" type="button">What is the weather in Berlin for the next 3 days?</button>
+            <button class="prompt-chip" data-target="chat" type="button">Look up ticket TCK-1003 and summarize it.</button>
+            <button class="prompt-chip" data-target="agent" type="button">Check SKU-1001, calculate 3 units in INR with expedited shipping to India, and write an executive summary.</button>
+        </section>
+
+        <section class="side-card">
+            <h3>Under the hood</h3>
+            <ul class="plain">
+                <li>Spring Boot 4.1 + Spring AI 2.0</li>
+                <li>JDBC-backed chat memory</li>
+                <li>Streamable-HTTP MCP server on :8091</li>
+                <li>Lazy, reconnecting MCP client</li>
+                <li>Hand-rolled multi-agent workflow</li>
+            </ul>
+        </section>
+    </aside>
+</div>
+
+<script src="/vendor/marked.min.js"></script>
+<script src="/vendor/purify.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

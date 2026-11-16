@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Knowledge base · DeepRelay Chat</title>
+<link rel="stylesheet" href="/chat.css">
+<style>
+    .kb-page {
+        min-height: 100dvh;
+        overflow: auto;
+        background: var(--bg);
+    }
+
+    .kb-shell {
+        width: min(1080px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 20px 0 64px;
+    }
+
+    .kb-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 4px 0 26px;
+    }
+
+    .kb-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text);
+        font-size: 15px;
+        font-weight: 650;
+        text-decoration: none;
+        letter-spacing: -0.01em;
+    }
+
+    .kb-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .kb-back {
+        padding: 8px 11px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: var(--surface);
+        color: var(--text-muted);
+        font-size: 12.5px;
+        text-decoration: none;
+    }
+
+    .kb-back:hover {
+        background: var(--surface-2);
+        color: var(--text);
+    }
+
+    .kb-hero {
+        max-width: 680px;
+        margin-bottom: 26px;
+    }
+
+    .kb-eyebrow {
+        margin: 0 0 8px;
+        color: var(--accent);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .kb-hero h1 {
+        margin: 0 0 10px;
+        font-size: clamp(26px, 4vw, 38px);
+        letter-spacing: -0.04em;
+        line-height: 1.1;
+    }
+
+    .kb-hero p {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 14px;
+        line-height: 1.65;
+    }
+
+    .kb-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-bottom: 14px;
+    }
+
+    .kb-card {
+        padding: 18px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+    }
+
+    .kb-card h2 {
+        margin: 0 0 7px;
+        font-size: 15px;
+        letter-spacing: -0.01em;
+    }
+
+    .kb-card > p {
+        margin: 0 0 14px;
+        color: var(--text-muted);
+        font-size: 12.8px;
+        line-height: 1.55;
+    }
+
+    .kb-drop {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 84px;
+        padding: 14px;
+        border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
+        border-radius: 11px;
+        background: color-mix(in srgb, var(--accent) 5%, transparent);
+        color: var(--text-muted);
+        font-size: 12.8px;
+        line-height: 1.4;
+        cursor: pointer;
+    }
+
+    .kb-drop.dragging {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+    }
+
+    .kb-drop svg {
+        flex: none;
+        color: var(--accent);
+    }
+
+    .kb-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 36px;
+        padding: 8px 13px;
+        border: 0;
+        border-radius: 9px;
+        background: var(--accent);
+        color: var(--accent-contrast);
+        font-size: 12.8px;
+        font-weight: 600;
+    }
+
+    .kb-button.secondary {
+        border: 1px solid var(--border);
+        background: var(--surface-2);
+        color: var(--text);
+    }
+
+    .kb-button:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+
+    .kb-form-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+    }
+
+    .kb-status {
+        min-height: 18px;
+        margin: 10px 0 0;
+        color: var(--text-muted);
+        font-size: 12px;
+    }
+
+    .kb-search {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .kb-search input {
+        flex: 1;
+        min-width: 0;
+        padding: 9px 11px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: var(--surface-2);
+        outline: none;
+        font-size: 13px;
+    }
+
+    .kb-search input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+    }
+
+    .kb-results {
+        display: grid;
+        gap: 8px;
+        margin-top: 14px;
+    }
+
+    .kb-result {
+        padding: 11px 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-2);
+    }
+
+    .kb-result-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+        font-size: 12px;
+    }
+
+    .kb-result-source {
+        overflow: hidden;
+        flex: 1;
+        font-weight: 600;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .kb-result-score {
+        padding: 1px 7px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 10.5px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .kb-result pre {
+        max-height: 220px;
+        margin: 0;
+        overflow: auto;
+        color: var(--text-muted);
+        font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11.5px;
+        line-height: 1.55;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 720px) {
+        .kb-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .kb-hero h1 {
+            font-size: 28px;
+        }
+    }
+</style>
+</head>
+<body class="kb-page">
+<div class="kb-shell">
+    <header class="kb-topbar">
+        <a class="kb-brand" href="/">
+            <span class="brand-mark">D</span>
+            <span>DeepRelay</span>
+        </a>
+        <div class="kb-actions">
+            <a class="kb-back" href="/">← Back to chat</a>
+            <button type="button" id="theme-toggle" class="icon-button" aria-label="Toggle theme" title="Toggle theme">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <section class="kb-hero">
+            <p class="kb-eyebrow">Knowledge base</p>
+            <h1>Documents that ground your answers</h1>
+            <p>Upload files, reindex the bundled sample docs, and test semantic retrieval. Parsing, embeddings, and storage happen on this machine.</p>
+        </section>
+
+        <section class="kb-grid">
+            <div class="kb-card">
+                <h2>Add a document</h2>
+                <p>Text, Markdown, PDF, Office files, HTML, JSON, CSV, and more.</p>
+                <form id="upload-form">
+                    <label class="kb-drop" id="drop-zone" for="file">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></svg>
+                        <span id="file-label">Choose files or drop them here</span>
+                        <input type="file" id="file" hidden multiple accept=".txt,.md,.markdown,.pdf,.doc,.docx,.odt,.rtf,.html,.htm,.xml,.json,.csv,.ppt,.pptx,.xls,.xlsx">
+                    </label>
+                    <div class="kb-form-row">
+                        <button type="submit" id="upload" class="kb-button">Upload and index</button>
+                    </div>
+                </form>
+                <p id="upload-status" class="kb-status">No document uploaded yet.</p>
+            </div>
+
+            <div class="kb-card">
+                <h2>Bundled documents</h2>
+                <p>The sample knowledge file is indexed at startup. Rebuild it whenever you change resources.</p>
+                <button type="button" id="reindex" class="kb-button secondary">Reindex sample docs</button>
+                <p id="reindex-status" class="kb-status">Ready.</p>
+            </div>
+        </section>
+
+        <section class="kb-card">
+            <h2>Test retrieval</h2>
+            <p>Search the vector store directly. Scores closer to 1 are more similar.</p>
+            <form id="search-form" class="kb-search">
+                <input type="text" id="query" value="What base URL does DeepRelay use?" aria-label="Search query">
+                <button type="submit" class="kb-button">Search</button>
+            </form>
+            <p id="search-status" class="kb-status"></p>
+            <div id="results" class="kb-results"></div>
+        </section>
+    </main>
+</div>
+
+<div id="toast" class="toast" role="status"></div>
+
+<script>
+    const els = {
+        themeToggle: document.getElementById("theme-toggle"),
+        uploadForm: document.getElementById("upload-form"),
+        dropZone: document.getElementById("drop-zone"),
+        file: document.getElementById("file"),
+        fileLabel: document.getElementById("file-label"),
+        upload: document.getElementById("upload"),
+        uploadStatus: document.getElementById("upload-status"),
+        reindex: document.getElementById("reindex"),
+        reindexStatus: document.getElementById("reindex-status"),
+        searchForm: document.getElementById("search-form"),
+        query: document.getElementById("query"),
+        searchStatus: document.getElementById("search-status"),
+        results: document.getElementById("results"),
+        toast: document.getElementById("toast"),
+    };
+
+    let selectedFiles = [];
+    let toastTimer = null;
+
+    applyTheme(getStored("deeprelay.theme") || preferredTheme());
+    els.themeToggle.addEventListener("click", () => {
+        applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark", true);
+    });
+
+    els.dropZone.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        els.dropZone.classList.add("dragging");
+    });
+    els.dropZone.addEventListener("dragleave", () => {
+        els.dropZone.classList.remove("dragging");
+    });
+    els.dropZone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        els.dropZone.classList.remove("dragging");
+        const files = Array.from(event.dataTransfer?.files || []);
+        if (files.length > 0) {
+            setSelectedFiles(files);
+        }
+    });
+    els.file.addEventListener("change", () => {
+        setSelectedFiles(Array.from(els.file.files || []));
+    });
+
+    function setSelectedFiles(files) {
+        selectedFiles = files;
+        if (files.length === 0) {
+            els.fileLabel.textContent = "Choose files or drop them here";
+        } else if (files.length === 1) {
+            els.fileLabel.textContent = files[0].name;
+        } else {
+            els.fileLabel.textContent = `${files.length} files selected`;
+        }
+    }
+
+    els.uploadForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (selectedFiles.length === 0) {
+            showToast("Choose at least one file first.", true);
+            return;
+        }
+
+        els.upload.disabled = true;
+        let indexedFiles = 0;
+        let indexedChunks = 0;
+        const failures = [];
+
+        try {
+            for (const [index, file] of selectedFiles.entries()) {
+                els.uploadStatus.textContent = `Uploading and indexing ${index + 1} of ${selectedFiles.length}: ${file.name}…`;
+                try {
+                    const body = new FormData();
+                    body.append("file", file);
+                    const response = await fetch("/api/rag/documents", { method: "POST", body });
+                    if (!response.ok) {
+                        throw new Error(await responseError(response));
+                    }
+                    const result = await response.json();
+                    indexedFiles++;
+                    indexedChunks += result.chunks;
+                } catch (error) {
+                    failures.push(`${file.name}: ${error.message}`);
+                }
+            }
+
+            if (indexedFiles > 0) {
+                const summary = `Indexed ${indexedFiles} file${indexedFiles === 1 ? "" : "s"} `
+                    + `(${indexedChunks} chunk${indexedChunks === 1 ? "" : "s"}).`;
+                els.uploadStatus.textContent = failures.length > 0
+                    ? `${summary} Failed: ${failures.join("; ")}`
+                    : summary;
+                showToast(summary);
+            } else {
+                els.uploadStatus.textContent = `Upload failed: ${failures.join("; ")}`;
+                showToast(failures.join("; "), true);
+            }
+        } finally {
+            els.upload.disabled = false;
+            setSelectedFiles([]);
+            els.file.value = "";
+        }
+    });
+
+    els.reindex.addEventListener("click", async () => {
+        els.reindex.disabled = true;
+        els.reindexStatus.textContent = "Reindexing sample documents…";
+        try {
+            const response = await fetch("/api/rag/reindex", { method: "POST" });
+            if (!response.ok) {
+                throw new Error(await responseError(response));
+            }
+            const result = await response.json();
+            els.reindexStatus.textContent = `Reindexed ${result.documents} document(s) into ${result.chunks} chunk(s).`;
+            showToast("Sample documents reindexed.");
+        } catch (error) {
+            els.reindexStatus.textContent = `Reindex failed: ${error.message}`;
+            showToast(error.message, true);
+        } finally {
+            els.reindex.disabled = false;
+        }
+    });
+
+    els.searchForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const query = els.query.value.trim();
+        if (!query) {
+            return;
+        }
+        els.searchStatus.textContent = "Searching…";
+        try {
+            const response = await fetch(`/api/rag/search?query=${encodeURIComponent(query)}&topK=6`);
+            if (!response.ok) {
+                throw new Error(await responseError(response));
+            }
+            const results = await response.json();
+            renderResults(results);
+            els.searchStatus.textContent = results.length
+                ? `${results.length} matching chunk(s).`
+                : "No chunks above the similarity threshold.";
+        } catch (error) {
+            els.results.textContent = "";
+            els.searchStatus.textContent = `Search failed: ${error.message}`;
+        }
+    });
+
+    function renderResults(results) {
+        els.results.textContent = "";
+        for (const result of results) {
+            const article = document.createElement("article");
+            article.className = "kb-result";
+            const head = document.createElement("div");
+            head.className = "kb-result-head";
+            const source = document.createElement("span");
+            source.className = "kb-result-source";
+            source.textContent = result.source || "Document";
+            const score = document.createElement("span");
+            score.className = "kb-result-score";
+            score.textContent = result.score == null ? "n/a" : Number(result.score).toFixed(3);
+            head.append(source, score);
+            const content = document.createElement("pre");
+            content.textContent = result.content || "";
+            article.append(head, content);
+            els.results.append(article);
+        }
+    }
+
+    async function responseError(response) {
+        const contentType = response.headers.get("content-type") || "";
+        try {
+            if (contentType.includes("application/json")) {
+                const data = await response.json();
+                return data.message || data.error || `HTTP ${response.status}`;
+            }
+            const text = (await response.text()).trim();
+            return text || `HTTP ${response.status}`;
+        } catch {
+            return `HTTP ${response.status}`;
+        }
+    }
+
+    function showToast(message, isError = false) {
+        window.clearTimeout(toastTimer);
+        els.toast.textContent = message;
+        els.toast.classList.toggle("error", isError);
+        els.toast.classList.add("show");
+        toastTimer = window.setTimeout(() => {
+            els.toast.classList.remove("show");
+        }, isError ? 6000 : 3600);
+    }
+
+    function preferredTheme() {
+        return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+
+    function applyTheme(theme, persist = false) {
+        document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
+        if (persist) {
+            try {
+                window.localStorage.setItem("deeprelay.theme", theme);
+            } catch {
+            }
+        }
+    }
+
+    function getStored(key) {
+        try {
+            return window.localStorage.getItem(key);
+        } catch {
+            return null;
+        }
+    }
+</script>
+</body>
+</html>

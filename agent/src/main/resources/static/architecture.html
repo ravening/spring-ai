@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Architecture · Spring AI Agent Lab</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/architecture.css">
+</head>
+<body>
+<header class="topbar">
+    <div class="brand">
+        <span class="logo">AI</span>
+        <div>
+            <h1>Spring AI Agent Lab</h1>
+            <p>Interactive architecture map</p>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <a class="ghost" href="/">Agent chat</a>
+    </div>
+</header>
+
+<main class="arch-layout">
+    <section class="diagram-card">
+        <div class="diagram-head">
+            <div>
+                <h2 id="diagram-title">How the demo is wired</h2>
+                <p class="muted">Choose a flow, then click any box for its role and source files.</p>
+            </div>
+            <div class="diagram-actions" role="group" aria-label="Diagram flows">
+                <button class="mode-button is-active" type="button" data-mode="chat" aria-pressed="true">Chat</button>
+                <button class="mode-button" type="button" data-mode="agents" aria-pressed="false">Multi-agent</button>
+                <button class="mode-button" type="button" data-mode="mcp" aria-pressed="false">MCP recovery</button>
+                <button class="play-button" id="play-flow" type="button">Play flow</button>
+            </div>
+        </div>
+
+        <div class="diagram-scroll">
+            <svg id="arch-svg" class="diagram" viewBox="0 0 1240 800" role="group"
+                 aria-labelledby="svg-title svg-desc" data-mode="chat">
+                <title id="svg-title">Spring AI agent architecture</title>
+                <desc id="svg-desc">A browser talks to an agent app with chat and multi-agent paths, an LLM endpoint and an MCP server with tools and a resource.</desc>
+
+                <defs>
+                    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#6366f1"></path>
+                    </marker>
+                </defs>
+
+                <rect class="lane lane-browser" x="20" y="320" width="220" height="180" rx="20"></rect>
+                <text class="lane-title" x="42" y="350">BROWSER</text>
+
+                <rect class="lane lane-app" x="290" y="40" width="610" height="720" rx="24"></rect>
+                <text class="lane-title" x="312" y="72">AGENT APP :8090</text>
+
+                <rect class="lane lane-model" x="950" y="40" width="270" height="200" rx="20"></rect>
+                <text class="lane-title" x="972" y="70">LLM</text>
+
+                <rect class="lane lane-mcp" x="930" y="420" width="290" height="330" rx="20"></rect>
+                <text class="lane-title" x="952" y="450">MCP SERVER :8091</text>
+
+                <g id="edges" aria-hidden="true">
+                    <path class="edge" data-flow="chat" d="M 220 390 C 260 390 270 155 330 155"
+                          marker-end="url(#arrow)"></path>
+                    <path class="edge edge-response" data-flow="chat"
+                          d="M 330 175 C 255 175 255 370 220 370" marker-end="url(#arrow)"></path>
+                    <path class="edge" data-flow="chat"
+                          d="M 550 145 C 720 55 860 55 965 145" marker-end="url(#arrow)"></path>
+                    <path class="edge edge-response" data-flow="chat"
+                          d="M 965 175 C 860 40 720 40 550 130" marker-end="url(#arrow)"></path>
+                    <path class="edge" data-flow="chat"
+                          d="M 550 155 C 615 155 635 155 700 155" marker-end="url(#arrow)"></path>
+                    <path class="edge" data-flow="chat"
+                          d="M 550 175 C 635 175 635 295 700 295" marker-end="url(#arrow)"></path>
+                    <path class="edge" data-flow="chat mcp"
+                          d="M 870 295 C 910 295 910 495 955 495" marker-end="url(#arrow)"></path>
+                    <path class="edge edge-response" data-flow="chat mcp"
+                          d="M 955 485 C 900 485 900 280 870 280" marker-end="url(#arrow)"></path>
+
+                    <path class="edge" data-flow="agents"
+                          d="M 220 410 C 265 410 270 295 330 295" marker-end="url(#arrow)"></path>
+                    <path class="edge edge-response" data-flow="agents"
+                          d="M 330 315 C 255 315 255 430 220 430" marker-end="url(#arrow)"></path>
+                    <path class="edge" data-flow="agents"
+                          d="M 400 340 C 400 360 405 370 405 390" marker-end="url(#arrow)"></path>
+                    <path class="edge" data-flow="agents"
+                          d="M 500 340 C 560 340 580 360 600 390" marker-end="url(#arrow)"></path>
+                    <path class="edge" data-flow="agents"
+                          d="M 330 295 C 305 295 305 528 330 528" marker-end="url(#arrow)"></path>
+                    <path class="edge" data-flow="agents"
+                          d="M 550 340 C 700 350 700 528 680 528" marker-end="url(#arrow)"></path>
+                    <path class="edge edge-peer" data-flow="agents"
+                          d="M 490 428 L 520 428" marker-end="url(#arrow)"></path>
+                    <path class="edge edge-peer" data-flow="agents"
+                          d="M 490 528 L 520 528" marker-end="url(#arrow)"></path>
+                    <path class="edge" data-flow="agents"
+                          d="M 600 566 C 600 580 585 580 585 590" marker-end="url(#arrow)"></path>
+                    <path class="edge edge-response" data-flow="agents"
+                          d="M 540 590 C 540 575 620 575 620 566" marker-end="url(#arrow)"></path>
+                    <path class="edge edge-response" data-flow="agents"
+                          d="M 880 82 L 965 108" marker-end="url(#arrow)"></path>
+                </g>
+
+                <g id="nodes">
+                    <g class="node" data-node="browser" tabindex="0" role="button"
+                       aria-label="Browser UI. Click for details.">
+                        <rect x="40" y="370" width="180" height="90" rx="15"></rect>
+                        <text class="node-title" x="130" y="406">Browser UI</text>
+                        <text class="node-sub" x="130" y="428">chat + multi-agent tabs</text>
+                    </g>
+
+                    <g class="node" data-node="chat" tabindex="0" role="button"
+                       aria-label="ChatService. Click for details.">
+                        <rect x="330" y="110" width="220" height="90" rx="15"></rect>
+                        <text class="node-title" x="440" y="146">ChatService</text>
+                        <text class="node-sub" x="440" y="168">memory + tool loop</text>
+                    </g>
+
+                    <g class="node" data-node="orchestrator" tabindex="0" role="button"
+                       aria-label="AgentOrchestrator. Click for details.">
+                        <rect x="330" y="250" width="220" height="90" rx="15"></rect>
+                        <text class="node-title" x="440" y="286">AgentOrchestrator</text>
+                        <text class="node-sub" x="440" y="308">plan, delegate, review</text>
+                    </g>
+
+                    <g class="node" data-node="planner" tabindex="0" role="button"
+                       aria-label="PlannerAgent. Click for details.">
+                        <rect x="330" y="390" width="160" height="76" rx="14"></rect>
+                        <text class="node-title" x="410" y="421">PlannerAgent</text>
+                        <text class="node-sub" x="410" y="442">structured plan</text>
+                    </g>
+
+                    <g class="node" data-node="research" tabindex="0" role="button"
+                       aria-label="ResearchAgent. Click for details.">
+                        <rect x="520" y="390" width="160" height="76" rx="14"></rect>
+                        <text class="node-title" x="600" y="421">ResearchAgent</text>
+                        <text class="node-sub" x="600" y="442">tools + MCP</text>
+                    </g>
+
+                    <g class="node" data-node="analyst" tabindex="0" role="button"
+                       aria-label="AnalystAgent. Click for details.">
+                        <rect x="330" y="490" width="160" height="76" rx="14"></rect>
+                        <text class="node-title" x="410" y="521">AnalystAgent</text>
+                        <text class="node-sub" x="410" y="542">calculator</text>
+                    </g>
+
+                    <g class="node" data-node="writer" tabindex="0" role="button"
+                       aria-label="WriterAgent. Click for details.">
+                        <rect x="520" y="490" width="160" height="76" rx="14"></rect>
+                        <text class="node-title" x="600" y="521">WriterAgent</text>
+                        <text class="node-sub" x="600" y="542">draft + revise</text>
+                    </g>
+
+                    <g class="node" data-node="critic" tabindex="0" role="button"
+                       aria-label="CriticAgent. Click for details.">
+                        <rect x="425" y="590" width="160" height="76" rx="14"></rect>
+                        <text class="node-title" x="505" y="621">CriticAgent</text>
+                        <text class="node-sub" x="505" y="642">approve / issues</text>
+                    </g>
+
+                    <g class="node" data-node="local" tabindex="0" role="button"
+                       aria-label="Local tools. Click for details.">
+                        <rect x="700" y="110" width="170" height="90" rx="15"></rect>
+                        <text class="node-title" x="785" y="146">Local tools</text>
+                        <text class="node-sub" x="785" y="168">4 @Tool methods</text>
+                    </g>
+
+                    <g class="node" data-node="mcpClient" tabindex="0" role="button"
+                       aria-label="MCP client. Click for details.">
+                        <rect x="700" y="250" width="170" height="90" rx="15"></rect>
+                        <text class="node-title" x="785" y="286">MCP client</text>
+                        <text class="node-sub" x="785" y="308">lazy + reconnect</text>
+                    </g>
+
+                    <g class="node node-model" data-node="model" tabindex="0" role="button"
+                       aria-label="LLM endpoint. Click for details.">
+                        <rect x="965" y="95" width="240" height="110" rx="16"></rect>
+                        <text class="node-title" x="1085" y="137">LLM endpoint</text>
+                        <text class="node-sub" x="1085" y="160">OpenAI-compatible</text>
+                        <text class="node-sub" x="1085" y="178">tool calling</text>
+                    </g>
+
+                    <g class="node" data-node="mcpServer" tabindex="0" role="button"
+                       aria-label="MCP server. Click for details.">
+                        <rect x="955" y="465" width="240" height="60" rx="14"></rect>
+                        <text class="node-title" x="1075" y="490">MCP server</text>
+                        <text class="node-sub" x="1075" y="509">streamable HTTP · /mcp</text>
+                    </g>
+
+                    <g class="node" data-node="mcpTools" tabindex="0" role="button"
+                       aria-label="MCP tools. Click for details.">
+                        <rect x="955" y="545" width="240" height="85" rx="14"></rect>
+                        <text class="node-title" x="1075" y="575">MCP tools</text>
+                        <text class="node-sub" x="1075" y="596">weather · inventory</text>
+                        <text class="node-sub" x="1075" y="613">FX · shipping</text>
+                    </g>
+
+                    <g class="node" data-node="resource" tabindex="0" role="button"
+                       aria-label="MCP resource. Click for details.">
+                        <rect x="955" y="650" width="240" height="60" rx="14"></rect>
+                        <text class="node-title" x="1075" y="675">MCP resource</text>
+                        <text class="node-sub" x="1075" y="694">returns policy</text>
+                    </g>
+                </g>
+
+                <g id="edge-labels" aria-hidden="true">
+                    <text class="edge-label" data-flow="chat" x="625" y="145">tool call</text>
+                    <text class="edge-label" data-flow="chat" x="612" y="230">MCP tool</text>
+                    <text class="edge-label" data-flow="chat mcp" x="905" y="400">MCP</text>
+                    <text class="edge-label" data-flow="agents" x="405" y="370">delegate</text>
+                    <text class="edge-label" data-flow="agents" x="596" y="584">review</text>
+                </g>
+            </svg>
+        </div>
+
+        <div class="diagram-legend">
+            <span><i class="legend-line"></i> request / delegation</span>
+            <span><i class="legend-line dashed"></i> response / revision</span>
+            <span><i class="legend-dot"></i> click a box for details</span>
+        </div>
+    </section>
+
+    <aside class="info-column">
+        <section class="info-card">
+            <p class="eyebrow" id="flow-eyebrow">Flow 1 of 3</p>
+            <h2 id="flow-title">Single-agent chat with tools</h2>
+            <p class="flow-description" id="flow-description"></p>
+            <ol class="flow-steps" id="flow-steps"></ol>
+        </section>
+
+        <section class="detail-card" id="node-detail" aria-live="polite">
+            <p class="eyebrow" id="detail-eyebrow">Component</p>
+            <h3 id="detail-title">Click a box</h3>
+            <p class="detail-subtitle" id="detail-subtitle">The diagram is interactive.</p>
+            <p class="detail-description" id="detail-description">Select any component to see what it does, what flows through it and which files implement it.</p>
+            <dl class="detail-io" id="detail-io"></dl>
+            <div class="detail-files" id="detail-files"></div>
+        </section>
+
+        <section class="info-card howto-card">
+            <h3>How to use the demo</h3>
+            <ol class="howto">
+                <li>Start the MCP server: <code>./run-mcp-server.sh</code></li>
+                <li>Start the agent app: <code>./run-agent.sh</code></li>
+                <li>Open <a href="/">the chat UI</a>, ask a question, and watch the trace.</li>
+                <li>Use the <strong>Multi-agent</strong> tab for the planner and specialist agents.</li>
+                <li>Click <strong>Refresh MCP</strong> in the UI to exercise reconnect.</li>
+            </ol>
+        </section>
+    </aside>
+</main>
+
+<script src="/architecture.js"></script>
+</body>
+</html>

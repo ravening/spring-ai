@@ -1,0 +1,46 @@
+server:
+  port: ${AGENT_PORT:8090}
+
+spring:
+  application:
+    name: agent-demo
+  datasource:
+    url: jdbc:h2:file:./data/agent-chat-memory;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  ai:
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always
+    openai:
+      base-url: ${DEEPRELAY_BASE_URL:https://api.deeprelay.ai/v1}
+      api-key: ${DEEPRELAY_API_KEY}
+      chat:
+        model: ${DEEPRELAY_MODEL:deeprelay/deepseek-v4.1-flash}
+        reasoning-effort: ${DEEPRELAY_REASONING_EFFORT:none}
+    mcp:
+      server:
+        enabled: false
+        annotation-scanner:
+          enabled: false
+
+agent:
+  mcp:
+    enabled: ${AGENT_MCP_ENABLED:true}
+    url: ${AGENT_MCP_URL:http://localhost:8091}
+    endpoint: ${AGENT_MCP_ENDPOINT:/mcp}
+    connect-timeout: ${AGENT_MCP_CONNECT_TIMEOUT:3s}
+    request-timeout: ${AGENT_MCP_REQUEST_TIMEOUT:30s}
+    retry-cooldown: ${AGENT_MCP_RETRY_COOLDOWN:10s}
+  chat:
+    memory:
+      max-messages: ${AGENT_CHAT_MEMORY_MAX_MESSAGES:40}
+  agents:
+    max-plan-steps: ${AGENT_MAX_PLAN_STEPS:4}
+
+logging:
+  level:
+    com.example.agent: info

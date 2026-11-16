@@ -1,0 +1,39 @@
+server:
+  port: ${MCP_SERVER_PORT:8091}
+
+spring:
+  application:
+    name: agent-demo-mcp-server
+  main:
+    banner-mode: off
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.ai.model.chat.memory.repository.jdbc.autoconfigure.JdbcChatMemoryRepositoryAutoConfiguration
+  web:
+    resources:
+      add-mappings: false
+  ai:
+    model:
+      chat: none
+    openai:
+      api-key: not-used-by-the-mcp-server
+    mcp:
+      server:
+        enabled: true
+        protocol: STREAMABLE
+        type: SYNC
+        name: agent-demo-mcp
+        version: 1.0.0
+        instructions: >
+          Demo MCP server exposing weather, inventory, FX and shipping tools
+          plus a returns policy resource.
+        annotation-scanner:
+          enabled: true
+        streamable-http:
+          mcp-endpoint: /mcp
+
+logging:
+  level:
+    com.example.mcpdemo: info
+    io.modelcontextprotocol: info
