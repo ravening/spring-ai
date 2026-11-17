@@ -6,6 +6,7 @@ This repository contains two Spring AI projects:
 |---|---|
 | `chat/` | Chat and RAG playground with DeepRelay/OpenAI-compatible models |
 | `agent/` | Agent lab: tool calling, MCP client/server, multi-agent workflow and live trace UI |
+| `embabel-stock-agent/` | Embabel multi-agent stock analyser: parallel research, live data, streaming chat, scoped RAG, MCP server/client and a Vue dashboard |
 
 ## Agent demo
 

@@ -1,0 +1,15 @@
+# Profile "mcp-client": let Embabel agents consume external MCP servers as tool groups.
+# Requires Docker Desktop with the MCP Toolkit extension, or adjust the stdio command.
+spring:
+  ai:
+    mcp:
+      client:
+        enabled: true
+        type: SYNC
+        stdio:
+          connections:
+            web-search:
+              command: docker
+              args: [mcp, gateway, run]
+              env:
+                BRAVE_API_KEY: ${BRAVE_API_KEY:}
