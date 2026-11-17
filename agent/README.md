@@ -248,6 +248,25 @@ MCP server (`application-mcp.yml`, profile `mcp`):
 The MCP server runs with the `mcp` profile automatically; it disables the chat
 model so it does not need an API key.
 
+## Prompt-injection notes
+
+Prompt injection cannot be fully prevented: any text in the context window — user
+messages, memory, retrieved documents, tool output — can carry instructions, and a
+system prompt is not a security boundary. This demo applies defence in depth:
+
+- User messages are capped at 8,000 characters and stripped of control characters at
+  the HTTP boundary (`PromptSafety`).
+- Retrieved RAG passages, prior agent/tool results, drafts and reviewer feedback are
+  wrapped in escaped `<data>` blocks, and every system prompt tells the model that
+  such content is reference material, never instructions.
+- Permissions are enforced in code rather than by the prompt: tools are read-only and
+  allowlisted, plan steps and revisions are bounded, and plan approval is available.
+
+Residual risks: MCP tool output and the model's own answers are still free text, and
+there is no authentication or rate limiting. If you add state-changing tools, require
+explicit confirmation in code. For a public deployment also add auth, rate limits and
+security headers.
+
 ## Notes
 
 - Chat memory is persisted per `conversationId` in the H2 file

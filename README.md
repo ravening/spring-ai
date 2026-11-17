@@ -33,3 +33,11 @@ export DEEPRELAY_API_KEY=your-key
 
 Open <http://localhost:8090> for the demo and
 <http://localhost:8090/architecture.html> for the interactive diagram.
+
+## Security notes
+
+Both projects apply defence in depth against prompt injection: input length caps,
+escaped `<data>` wrappers around retrieved/tool content, and instructions that treat
+wrapped text as data. This reduces but cannot eliminate the risk — the system prompt
+is not a security boundary, so permissions must be enforced in code. See the
+[agent security notes](agent/README.md#prompt-injection-notes) for details.
