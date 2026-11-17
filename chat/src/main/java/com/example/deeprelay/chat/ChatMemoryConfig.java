@@ -25,7 +25,8 @@ public class ChatMemoryConfig {
                         Format answers in Markdown when it improves readability: use short paragraphs,
                         bullet or numbered lists, bold for key terms, tables for comparisons, and
                         fenced code blocks with a language tag for code.
-                        """)
+
+                        """ + PromptSafety.dataInstruction())
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .build();
     }

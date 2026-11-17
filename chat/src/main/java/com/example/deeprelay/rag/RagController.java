@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import com.example.deeprelay.chat.PromptSafety;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.document.Document;
@@ -66,11 +67,9 @@ public class RagController {
     public List<SearchResult> search(@RequestParam String query,
             @RequestParam(name = "conversationId", required = false) String conversationId,
             @RequestParam(name = "topK", required = false) Integer topK) {
-        if (!StringUtils.hasText(query)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "query is required");
-        }
-        int results = topK != null ? Math.max(1, topK) : this.properties.topK();
-        return this.retrievalService.retrieve(query, conversationId, results).stream()
+        String safeQuery = PromptSafety.validatedMessage(query);
+        int results = topK != null ? Math.max(1, Math.min(topK, 20)) : this.properties.topK();
+        return this.retrievalService.retrieve(safeQuery, conversationId, results).stream()
                 .map(SearchResult::from)
                 .toList();
     }
@@ -79,7 +78,7 @@ public class RagController {
     public ChatResponse chat(@RequestParam String message,
             @RequestParam(defaultValue = "default") String conversationId) {
         String response = this.chatClient.prompt()
-                .user(message)
+                .user(PromptSafety.validatedMessage(message))
                 .advisors(this.ragAdvisor)
                 .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .call()
@@ -91,7 +90,7 @@ public class RagController {
     public Flux<String> stream(@RequestParam String message,
             @RequestParam(defaultValue = "default") String conversationId) {
         return this.chatClient.prompt()
-                .user(message)
+                .user(PromptSafety.validatedMessage(message))
                 .advisors(this.ragAdvisor)
                 .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .stream()

@@ -57,10 +57,8 @@ public class ChatController {
     }
 
     private ChatClient.ChatClientRequestSpec prompt(String message, String conversationId, boolean rag) {
-        if (!StringUtils.hasText(message)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "message is required");
-        }
-        ChatClient.ChatClientRequestSpec spec = this.chatClient.prompt().user(message);
+        String safeMessage = PromptSafety.validatedMessage(message);
+        ChatClient.ChatClientRequestSpec spec = this.chatClient.prompt().user(safeMessage);
         if (rag) {
             spec = spec.advisors(this.ragAdvisor);
         }

@@ -41,7 +41,7 @@ public class StreamingChatController {
 
     private Flux<String> streamContent(String message, String conversationId) {
         return this.chatClient.prompt()
-                .user(message)
+                .user(PromptSafety.validatedMessage(message))
                 .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .stream()
                 .content();
