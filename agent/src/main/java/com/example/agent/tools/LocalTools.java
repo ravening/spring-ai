@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.example.agent.core.PromptSafety;
 import com.example.agent.knowledge.KnowledgeService;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.annotation.Tool;
@@ -104,7 +105,7 @@ public class LocalTools {
         if (documents.isEmpty()) {
             return "No knowledge-base passages matched '" + query + "'.";
         }
-        StringBuilder result = new StringBuilder("Knowledge base passages:\n\n");
+        StringBuilder result = new StringBuilder();
         for (Document document : documents) {
             Object source = document.getMetadata().get("source");
             result.append("Source: ").append(source == null ? "unknown" : source).append('\n');
@@ -112,7 +113,8 @@ public class LocalTools {
             result.append(text.length() > 2000 ? text.substring(0, 2000) + "... [truncated]" : text)
                     .append("\n\n");
         }
-        return result.toString().trim();
+        // Retrieved text is untrusted data, never instructions to the model.
+        return PromptSafety.data("Knowledge base passages:\n" + result.toString().trim());
     }
 
     private static String format(double value) {

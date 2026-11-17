@@ -3,6 +3,7 @@ package com.example.agent.agent;
 import java.util.List;
 
 import com.example.agent.core.AgentTrace;
+import com.example.agent.core.PromptSafety;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
@@ -18,7 +19,8 @@ public class WriterAgent {
             Write only what the user should read. Never mention goals, instructions, plans,
             agents, reviewers, evidence, or that a constraint was satisfied. No meta-commentary.
             Honor explicit format limits in the task, such as "one sentence" or "one paragraph".
-            """;
+
+            """ + PromptSafety.dataInstruction();
 
     private final ChatClient chatClient;
 
@@ -80,7 +82,7 @@ public class WriterAgent {
                 Rewrite the answer so that every valid issue is addressed. Keep the parts that
                 already work. Do not mention the reviewer or the feedback. Return the complete
                 revised answer in Markdown.
-                """.formatted(goal, draft, review);
+                """.formatted(goal, PromptSafety.data(draft), PromptSafety.data(review));
 
         return chatClient.prompt()
                 .system(WRITER_SYSTEM + "\nThis is the final answer. Return only the revised answer.")

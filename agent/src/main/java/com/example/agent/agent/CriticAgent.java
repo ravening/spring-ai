@@ -3,6 +3,7 @@ package com.example.agent.agent;
 import java.util.List;
 
 import com.example.agent.core.AgentTrace;
+import com.example.agent.core.PromptSafety;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
@@ -24,7 +25,8 @@ public class CriticAgent {
                         Return a structured verdict. Set approved to true only when the draft
                         is ready. Otherwise list concrete issues to fix in the issues field
                         and explain the decision in the summary field. Do not rewrite the draft.
-                        """)
+
+                        """ + PromptSafety.dataInstruction())
                 .build();
     }
 
@@ -37,9 +39,9 @@ public class CriticAgent {
                 Evidence gathered by the team:
                 %s
 
-                Draft:
+                Draft to review:
                 %s
-                """.formatted(goal, AgentSupport.priorResults(results), draft);
+                """.formatted(goal, AgentSupport.priorResults(results), PromptSafety.data(draft));
 
         try {
             Review review = chatClient.prompt()

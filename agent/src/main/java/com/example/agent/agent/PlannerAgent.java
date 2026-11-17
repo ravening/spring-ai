@@ -3,6 +3,7 @@ package com.example.agent.agent;
 import java.util.List;
 
 import com.example.agent.core.AgentTrace;
+import com.example.agent.core.PromptSafety;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
@@ -33,7 +34,8 @@ public class PlannerAgent {
                         - Do not add critique, review or final-synthesis steps; those happen later.
                         - Each instruction must be self-contained and specific.
                         - Keep the plan short. Return only the structured plan.
-                        """)
+
+                        """ + PromptSafety.dataInstruction())
                 .build();
     }
 

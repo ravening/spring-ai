@@ -80,4 +80,11 @@ class ChatServiceStreamTests {
         assertThatThrownBy(() -> service.stream(new ChatRequest(" ", "chat-1")))
                 .isInstanceOf(ResponseStatusException.class);
     }
+
+    @Test
+    void rejectsOversizedMessage() {
+        ChatService service = new ChatService(chatClient, toolCatalog);
+        assertThatThrownBy(() -> service.stream(new ChatRequest("x".repeat(8001), "chat-1")))
+                .isInstanceOf(ResponseStatusException.class);
+    }
 }

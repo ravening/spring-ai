@@ -5,6 +5,7 @@ import java.util.Map;
 
 import com.example.agent.core.AgentTrace;
 import com.example.agent.core.ConversationId;
+import com.example.agent.core.PromptSafety;
 import com.example.agent.core.ToolCallRecord;
 import com.example.agent.tools.ToolCatalog;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -17,7 +18,6 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import reactor.core.publisher.Flux;
@@ -40,9 +40,7 @@ public class ChatService {
     }
 
     public ChatResponse chat(ChatRequest request) {
-        if (request == null || !StringUtils.hasText(request.message())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "message is required");
-        }
+        String message = validatedMessage(request);
 
         String conversationId = ConversationId.resolve(request.conversationId());
         AgentTrace trace = new AgentTrace(conversationId);
@@ -50,7 +48,7 @@ public class ChatService {
         trace.event("chat_started", "User message received");
 
         String answer = chatClient.prompt()
-                .user(request.message())
+                .user(message)
                 .toolCallbacks(toolCatalog.all())
                 .toolContext(Map.of(AgentTrace.CONTEXT_KEY, trace))
                 .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, conversationId))
@@ -68,9 +66,7 @@ public class ChatService {
      * UI can render it exactly as it does for {@link #chat(ChatRequest)}.
      */
     public Flux<ServerSentEvent<String>> stream(ChatRequest request) {
-        if (request == null || !StringUtils.hasText(request.message())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "message is required");
-        }
+        String message = validatedMessage(request);
 
         String conversationId = ConversationId.resolve(request.conversationId());
         AgentTrace trace = new AgentTrace(conversationId);
@@ -83,7 +79,7 @@ public class ChatService {
                 .build());
 
         Flux<ServerSentEvent<String>> tokens = chatClient.prompt()
-                .user(request.message())
+                .user(message)
                 .toolCallbacks(toolCatalog.all())
                 .toolContext(Map.of(AgentTrace.CONTEXT_KEY, trace))
                 .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, conversationId))
@@ -105,6 +101,13 @@ public class ChatService {
                         .event("error")
                         .data(ex.getMessage() == null ? "Stream failed" : ex.getMessage())
                         .build()));
+    }
+
+    private static String validatedMessage(ChatRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "message is required");
+        }
+        return PromptSafety.validatedMessage(request.message());
     }
 
     private String writeToolCalls(List<ToolCallRecord> toolCalls) {

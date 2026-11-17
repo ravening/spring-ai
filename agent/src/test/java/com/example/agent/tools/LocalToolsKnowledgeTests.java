@@ -28,7 +28,7 @@ class LocalToolsKnowledgeTests {
         LocalTools tools = new LocalTools(knowledgeService);
         String result = tools.knowledgeSearch("refund window", null);
 
-        assertThat(result).contains("Source: handbook.md", "45 days");
+        assertThat(result).startsWith("<data>").contains("Source: handbook.md", "45 days");
         verify(knowledgeService).search("refund window", 4);
     }
 

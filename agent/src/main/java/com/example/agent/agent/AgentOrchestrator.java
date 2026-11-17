@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.example.agent.core.AgentTrace;
 import com.example.agent.core.ConversationId;
+import com.example.agent.core.PromptSafety;
 
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -241,7 +242,8 @@ public class AgentOrchestrator {
                     .append(AgentSupport.truncate(message.getText().replaceAll("\\s+", " ").strip(), 600))
                     .append('\n');
         }
-        return goal.append("\nCurrent task: ").append(task).toString();
+        return PromptSafety.data(goal.toString().trim())
+                + "\n\nCurrent task: " + task;
     }
 
     private void remember(String conversationId, String task, String answer) {

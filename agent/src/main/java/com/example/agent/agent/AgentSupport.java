@@ -3,6 +3,8 @@ package com.example.agent.agent;
 import java.util.List;
 import java.util.Locale;
 
+import com.example.agent.core.PromptSafety;
+
 final class AgentSupport {
 
     private AgentSupport() {
@@ -29,7 +31,8 @@ final class AgentSupport {
                     .append(truncate(result.output(), 2500))
                     .append("\n\n");
         }
-        return builder.toString().trim();
+        // Step output can include tool results and model text from other agents.
+        return PromptSafety.data(builder.toString().trim());
     }
 
     static String summarize(String value, int maxLength) {

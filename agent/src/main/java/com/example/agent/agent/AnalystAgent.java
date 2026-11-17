@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.example.agent.core.AgentTrace;
+import com.example.agent.core.PromptSafety;
 import com.example.agent.tools.LocalToolCatalog;
 
 import org.springframework.ai.chat.client.ChatClient;
@@ -27,7 +28,8 @@ public class AnalystAgent {
 
                         Return concise Markdown with the calculation, the result and a short
                         interpretation. Do not write the final polished answer.
-                        """)
+
+                        """ + PromptSafety.dataInstruction())
                 .build();
     }
 

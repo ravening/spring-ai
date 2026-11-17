@@ -1,5 +1,7 @@
 package com.example.agent.config;
 
+import com.example.agent.core.PromptSafety;
+
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -28,7 +30,8 @@ public class AgentConfig {
 
                         Format answers in Markdown: short paragraphs, bullet lists where useful,
                         and fenced code blocks with a language tag for code.
-                        """)
+
+                        """ + PromptSafety.dataInstruction())
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .build();
     }

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.example.agent.core.AgentTrace;
+import com.example.agent.core.PromptSafety;
 import com.example.agent.tools.ToolCatalog;
 
 import org.springframework.ai.chat.client.ChatClient;
@@ -27,7 +28,8 @@ public class ResearchAgent {
 
                         Return compact Markdown bullet points with numbers, dates and names.
                         Do not write the final polished answer; another agent will do that.
-                        """)
+
+                        """ + PromptSafety.dataInstruction())
                 .build();
     }
 
