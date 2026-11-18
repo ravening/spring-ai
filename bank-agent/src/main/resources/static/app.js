@@ -179,6 +179,8 @@ async function deleteConversation(id) {
             localStorage.removeItem(CONV_KEY);
             els.messages.innerHTML = "";
             els.documentList.innerHTML = "";
+            els.chatTitle.textContent = "Select or start a conversation";
+            els.chatSub.textContent = "";
             hideTrace();
             updateWorkingBadge();
         }

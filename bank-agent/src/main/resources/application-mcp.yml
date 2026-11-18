@@ -16,6 +16,7 @@ spring:
   ai:
     model:
       chat: none
+      embedding: none
     openai:
       api-key: not-used-by-the-mcp-server
     mcp:

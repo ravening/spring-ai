@@ -25,7 +25,7 @@ class RunRegistryTest {
         RunRecord.RunStatus status = registry.get(run.runId()).snapshot();
         assertEquals("COMPLETED", status.status());
         assertEquals("Your balance is 1.00 EUR.", status.answer());
-        assertTrue(status.events().stream().noneMatch(e -> e.type().equals("x")));
+        assertTrue(status.events().isEmpty());
     }
 
     @Test

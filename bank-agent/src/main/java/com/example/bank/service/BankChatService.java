@@ -49,7 +49,9 @@ public class BankChatService {
     public record StartRunResponse(String conversationId, String runId) {
     }
 
-    public StartRunResponse submit(String userId, String conversationId, String message) {
+    // Synchronized so the isActive check and runRegistry.start are atomic per JVM:
+    // two rapid sends on the same conversation cannot start two overlapping runs.
+    public synchronized StartRunResponse submit(String userId, String conversationId, String message) {
         BankUser user = users.resolve(userId);
         String cleanMessage = PromptSafety.validatedMessage(message);
 

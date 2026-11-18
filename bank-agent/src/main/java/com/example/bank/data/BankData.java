@@ -251,7 +251,16 @@ public class BankData {
                 new BankAccount(secondId, secondName, secondType, currency,
                         secondBalance.setScale(2, RoundingMode.HALF_UP), fakeIban(userId, 2)));
 
-        BigDecimal spentThisMonth = spendingSummary(userId, YearMonth.now(), checkingId).total();
+        // Compute from the local list: the maps are only populated below, so calling
+        // spendingSummary(...) here would read empty maps and crash on currencyOf.
+        YearMonth currentMonth = YearMonth.now();
+        BigDecimal spentThisMonth = txns.stream()
+                .filter(t -> t.accountId().equals(checkingId))
+                .filter(BankTransaction::isSpending)
+                .filter(t -> YearMonth.from(t.date()).equals(currentMonth))
+                .map(t -> t.amount().abs())
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
         List<BankCard> userCards = List.of(
                 new BankCard("CARD-" + userId.toUpperCase(Locale.ROOT) + "-1", "**** " + (1000 + rnd.nextInt(9000)),
                         "DEBIT", "ACTIVE", bd(3000), spentThisMonth),
