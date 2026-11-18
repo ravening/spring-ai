@@ -7,6 +7,7 @@ This repository contains two Spring AI projects:
 | `chat/` | Chat and RAG playground with DeepRelay/OpenAI-compatible models |
 | `agent/` | Agent lab: tool calling, MCP client/server, multi-agent workflow and live trace UI |
 | `embabel-stock-agent/` | Embabel multi-agent stock analyser: parallel research, live data, streaming chat, scoped RAG, MCP server/client and a Vue dashboard |
+| `bank-agent/` | Multi-agent banking assistant: per-customer chat with memory, scoped RAG file uploads, async "still working" runs and a separate bank MCP server exposing account/transaction tools |
 
 ## Agent demo
 
@@ -34,6 +35,24 @@ export DEEPRELAY_API_KEY=your-key
 
 Open <http://localhost:8090> for the demo and
 <http://localhost:8090/architecture.html> for the interactive diagram.
+
+## Bank demo
+
+The `bank-agent/` project is a multi-agent banking assistant: customers chat with a
+team of agents (router → domain agents → writer → critic), all bank data comes from a
+separate MCP server (`list_accounts`, `get_account_balance`, `list_transactions`,
+`spending_summary`, `income_summary`, …), conversations are remembered per customer,
+and uploaded files are indexed as scoped RAG context.
+
+```bash
+cd bank-agent
+export DEEPRELAY_API_KEY=your-key
+./run-bank-mcp.sh   # terminal 1, port 8096
+./run-bank-app.sh   # terminal 2, port 8095
+```
+
+Open <http://localhost:8095>, pick a demo customer (alice, bob, carol) and chat.
+See [`bank-agent/README.md`](bank-agent/README.md) for the full guide.
 
 ## Security notes
 

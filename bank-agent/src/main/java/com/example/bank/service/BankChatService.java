@@ -1,0 +1,107 @@
+package com.example.bank.service;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.example.bank.agent.BankOrchestrator;
+import com.example.bank.agent.RunRecord;
+import com.example.bank.agent.RunRegistry;
+import com.example.bank.chat.ConversationService;
+import com.example.bank.core.AgentTrace;
+import com.example.bank.core.ConversationId;
+import com.example.bank.core.PromptSafety;
+import com.example.bank.users.BankUser;
+import com.example.bank.users.UserDirectory;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+/**
+ * Entry point for chat messages. Runs are asynchronous: the user message is
+ * persisted immediately and the agent team runs on a background executor, so the
+ * UI can keep working (and show a "still working" badge) while the answer is
+ * being produced.
+ */
+@Service
+public class BankChatService {
+
+    private static final Logger log = LoggerFactory.getLogger(BankChatService.class);
+
+    private final UserDirectory users;
+    private final ConversationService conversations;
+    private final BankOrchestrator orchestrator;
+    private final RunRegistry runRegistry;
+    private final ExecutorService executor = Executors.newFixedThreadPool(4);
+
+    public BankChatService(UserDirectory users, ConversationService conversations,
+            BankOrchestrator orchestrator, RunRegistry runRegistry) {
+        this.users = users;
+        this.conversations = conversations;
+        this.orchestrator = orchestrator;
+        this.runRegistry = runRegistry;
+    }
+
+    public record StartRunResponse(String conversationId, String runId) {
+    }
+
+    // Synchronized so the isActive check and runRegistry.start are atomic per JVM:
+    // two rapid sends on the same conversation cannot start two overlapping runs.
+    public synchronized StartRunResponse submit(String userId, String conversationId, String message) {
+        BankUser user = users.resolve(userId);
+        String cleanMessage = PromptSafety.validatedMessage(message);
+
+        String cid = ConversationId.resolve(conversationId);
+        boolean created = false;
+        if (!conversations.exists(cid)) {
+            conversations.create(user.id(), cid);
+            created = true;
+        }
+        conversations.ensureOwnership(cid, user.id());
+
+        if (runRegistry.isActive(cid)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This conversation is still processing the previous question. Please wait for it to finish.");
+        }
+
+        conversations.addUserMessage(cid, cleanMessage);
+        if (created) {
+            conversations.titleFromFirstMessage(cid, cleanMessage);
+        }
+
+        RunRecord run = runRegistry.start(cid, user.id(), cleanMessage);
+        executor.submit(() -> execute(run, cleanMessage));
+        return new StartRunResponse(cid, run.runId());
+    }
+
+    public RunRecord.RunStatus status(String runId) {
+        RunRecord run = runRegistry.get(runId);
+        if (run == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Run not found");
+        }
+        return run.snapshot();
+    }
+
+    private void execute(RunRecord run, String message) {
+        AgentTrace trace = run.trace();
+        try {
+            String answer = orchestrator.run(run.userId(), run.conversationId(), message, trace);
+            conversations.addAssistantMessage(run.conversationId(), answer);
+            runRegistry.complete(run.runId(), answer);
+        }
+        catch (Exception ex) {
+            log.error("Banking run {} failed", run.runId(), ex);
+            trace.event("run_failed", "orchestrator", "Run failed: " + ex.getMessage(), null, null);
+            runRegistry.fail(run.runId(), ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
+        }
+    }
+
+    @PreDestroy
+    void shutdown() {
+        executor.shutdownNow();
+    }
+}

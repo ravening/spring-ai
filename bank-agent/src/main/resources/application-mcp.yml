@@ -1,0 +1,41 @@
+server:
+  port: ${BANK_MCP_PORT:8096}
+
+spring:
+  application:
+    name: bank-mcp-server
+  main:
+    banner-mode: off
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.ai.model.chat.memory.repository.jdbc.autoconfigure.JdbcChatMemoryRepositoryAutoConfiguration
+  web:
+    resources:
+      add-mappings: false
+  ai:
+    model:
+      chat: none
+      embedding: none
+    openai:
+      api-key: not-used-by-the-mcp-server
+    mcp:
+      server:
+        enabled: true
+        protocol: STREAMABLE
+        type: SYNC
+        name: bank-mcp
+        version: 1.0.0
+        instructions: >
+          Banking MCP server exposing demo account, transaction, spending, income,
+          card and customer-profile tools. Every tool requires the customer's
+          userId so data stays scoped per customer.
+        annotation-scanner:
+          enabled: true
+        streamable-http:
+          mcp-endpoint: /mcp
+
+logging:
+  level:
+    com.example.bank: info
+    io.modelcontextprotocol: info

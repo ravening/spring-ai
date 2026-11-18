@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Spring AI Bank</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="topbar">
+    <div class="brand">
+        <span class="logo">🏦</span>
+        <div>
+            <h1>Spring AI Bank</h1>
+            <p>Multi-agent banking assistant · memory · RAG · MCP tools</p>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <label class="user-picker">
+            Customer
+            <select id="user-select"></select>
+        </label>
+        <span id="mcp-badge" class="badge badge-muted">MCP: checking…</span>
+        <button id="refresh-mcp" class="ghost" type="button">Refresh MCP</button>
+        <button id="tools-button" class="ghost" type="button">Tools</button>
+    </div>
+</header>
+
+<div class="layout">
+    <aside class="sidebar">
+        <button id="new-conversation" class="primary block" type="button">+ New conversation</button>
+        <h2 class="sidebar-title">Conversations</h2>
+        <div id="conversation-list" class="conversation-list"></div>
+
+        <h2 class="sidebar-title">Documents <span class="hint">(context for the assistant)</span></h2>
+        <div class="upload-row">
+            <select id="upload-scope" title="Where the file is visible">
+                <option value="chat">This chat only</option>
+                <option value="user">All my chats</option>
+            </select>
+            <button id="attach-button" class="ghost" type="button">Attach file…</button>
+            <input id="file-input" type="file" hidden>
+        </div>
+        <div id="document-list" class="document-list"></div>
+    </aside>
+
+    <main class="main">
+        <div class="chat-head">
+            <div>
+                <h2 id="chat-title">Select or start a conversation</h2>
+                <p id="chat-sub" class="hint"></p>
+            </div>
+            <span id="working-badge" class="badge badge-working hidden">⏳ working on your question…</span>
+        </div>
+
+        <div id="messages" class="messages"></div>
+
+        <section id="trace-panel" class="trace-panel hidden">
+            <div class="trace-head">
+                <h3>Agent activity</h3>
+                <button id="trace-toggle" class="ghost" type="button">Hide</button>
+            </div>
+            <div id="trace-events" class="trace-events"></div>
+            <h4>Tool calls</h4>
+            <div id="trace-tools" class="trace-tools"></div>
+        </section>
+
+        <form id="composer" class="composer">
+            <textarea id="chat-input" rows="3"
+                      placeholder="Ask about your balance, spending, income, last transactions, card limits, bank fees… or upload a file first"></textarea>
+            <div class="composer-actions">
+                <span class="hint">Answers use your conversation history, uploaded files and live MCP bank data.</span>
+                <button id="send-button" class="primary" type="submit">Send</button>
+            </div>
+        </form>
+    </main>
+</div>
+
+<div id="tools-modal" class="modal hidden">
+    <div class="modal-card">
+        <div class="modal-head">
+            <h2>Tools available to the agents</h2>
+            <button id="tools-close" class="ghost" type="button">Close</button>
+        </div>
+        <div id="tools-content"></div>
+    </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/vendor/marked.min.js"></script>
+<script src="/vendor/purify.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
