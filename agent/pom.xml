@@ -20,6 +20,11 @@
     <properties>
         <java.version>21</java.version>
         <spring-ai.version>2.0.2</spring-ai.version>
+        <!-- Boot 4.1.2 manages H2 2.4.240, whose CHECK (.. IN (..)) constraints are
+             misreported as invalid ("Check constraint invalid: CONSTRAINT_A") on any
+             connection other than the one that created them, breaking inserts into
+             SPRING_AI_CHAT_MEMORY. Fixed upstream in H2 2.5.x. -->
+        <h2.version>2.5.252</h2.version>
         <app.main-class>com.example.agent.AgentApplication</app.main-class>
     </properties>
 
