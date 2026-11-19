@@ -8,6 +8,7 @@ import com.example.bank.voice.VoiceProperties;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.ai.audio.transcription.TranscriptionModel;
+import org.springframework.ai.audio.tts.TextToSpeechModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.io.Resource;
 import org.springframework.mock.web.MockMultipartFile;
@@ -31,17 +32,31 @@ class VoiceControllerTest {
             "whisper-1", "gpt-4o-mini-tts", "alloy", 1024, 4000, "data/audio");
 
     @SuppressWarnings("unchecked")
-    private MockMvc mvcWith(TranscriptionModel model) {
-        ObjectProvider<TranscriptionModel> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(model);
-        return MockMvcBuilders.standaloneSetup(new VoiceController(chatService, provider, props))
+    private MockMvc mvcWith(TranscriptionModel stt, TextToSpeechModel tts) {
+        ObjectProvider<TranscriptionModel> sttProvider = mock(ObjectProvider.class);
+        when(sttProvider.getIfAvailable()).thenReturn(stt);
+        ObjectProvider<TextToSpeechModel> ttsProvider = mock(ObjectProvider.class);
+        when(ttsProvider.getIfAvailable()).thenReturn(tts);
+        return MockMvcBuilders.standaloneSetup(new VoiceController(chatService, sttProvider, ttsProvider, props))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }
 
     @Test
+    void statusReportsWhichVoiceModelsAreConfigured() throws Exception {
+        mvcWith(transcriptionModel, null).perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/voice/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stt").value(true))
+                .andExpect(jsonPath("$.tts").value(false));
+        mvcWith(null, null).perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/voice/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stt").value(false))
+                .andExpect(jsonPath("$.tts").value(false));
+    }
+
+    @Test
     void missingTranscriptionModelReturns503() throws Exception {
-        mvcWith(null).perform(multipart("/api/chat/voice")
+        mvcWith(null, null).perform(multipart("/api/chat/voice")
                         .file(new MockMultipartFile("audio", "a.webm", "audio/webm", "x".getBytes()))
                         .param("userId", "alice"))
                 .andExpect(status().isServiceUnavailable());
@@ -50,7 +65,7 @@ class VoiceControllerTest {
     @Test
     void oversizeUploadReturns400() throws Exception {
         byte[] big = new byte[(int) props.maxUploadBytes() + 1];
-        mvcWith(transcriptionModel).perform(multipart("/api/chat/voice")
+        mvcWith(transcriptionModel, null).perform(multipart("/api/chat/voice")
                         .file(new MockMultipartFile("audio", "a.webm", "audio/webm", big))
                         .param("userId", "alice"))
                 .andExpect(status().isBadRequest());
@@ -59,7 +74,7 @@ class VoiceControllerTest {
     @Test
     void emptyTranscriptionReturns400() throws Exception {
         when(transcriptionModel.transcribe(any(Resource.class))).thenReturn("   ");
-        mvcWith(transcriptionModel).perform(multipart("/api/chat/voice")
+        mvcWith(transcriptionModel, null).perform(multipart("/api/chat/voice")
                         .file(new MockMultipartFile("audio", "a.webm", "audio/webm",
                                 "audio-bytes".getBytes(StandardCharsets.UTF_8)))
                         .param("userId", "alice"))
@@ -71,7 +86,7 @@ class VoiceControllerTest {
         when(transcriptionModel.transcribe(any(Resource.class))).thenReturn("transfer 10 EUR to bob");
         when(chatService.submit(eq("alice"), isNull(), eq("transfer 10 EUR to bob")))
                 .thenReturn(new BankChatService.StartRunResponse("conv-1", "run-1"));
-        mvcWith(transcriptionModel).perform(multipart("/api/chat/voice")
+        mvcWith(transcriptionModel, null).perform(multipart("/api/chat/voice")
                         .file(new MockMultipartFile("audio", "a.webm", "audio/webm",
                                 "audio-bytes".getBytes(StandardCharsets.UTF_8)))
                         .param("userId", "alice"))

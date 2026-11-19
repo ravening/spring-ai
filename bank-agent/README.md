@@ -115,12 +115,18 @@ for app-internal capabilities (RAG retrieval, arithmetic, time).
 | `AUDIO_STT_MODEL`, `AUDIO_TTS_MODEL`, `AUDIO_TTS_VOICE` | `whisper-1`, `gpt-4o-mini-tts`, `alloy` |
 | `BANK_VOICE_MAX_UPLOAD_BYTES`, `BANK_VOICE_MAX_TTS_CHARS`, `BANK_VOICE_AUDIO_DIR` | `10485760`, `4000`, `data/audio` |
 
-Voice chat: the browser records audio (`MediaRecorder`) and posts it to
-`POST /api/chat/voice`; the server transcribes it (STT) and runs the normal agent
-pipeline, so the transcript is stored in `spring_ai_chat_memory` like any typed
-message. After the run completes, the answer is synthesized to MP3
+Voice chat: with server voice enabled, the browser records audio (`MediaRecorder`)
+and posts it to `POST /api/chat/voice`; the server transcribes it (STT) and runs the
+normal agent pipeline, so the transcript is stored in `spring_ai_chat_memory` like any
+typed message. After the run completes, the answer is synthesized to MP3
 (`data/audio/<runId>.mp3`) and played in the UI next to the text bubble
 (`GET /api/runs/{runId}/audio`).
+
+Without any voice API key, the UI automatically falls back to the browser's built-in
+speech (no server config needed, works on `localhost`): `SpeechRecognition` /
+`webkitSpeechRecognition` transcribes the mic input and sends it to the regular
+`POST /api/chat`, and `speechSynthesis` speaks the answer aloud. The UI picks the mode
+from `GET /api/voice/status` (`{stt, tts}`); browser recognition needs Chrome/Edge.
 
 The embedding model (all-MiniLM-L6-v2, ~87 MB) is downloaded once into
 `data/model-cache` on first start, so RAG works without any embedding API key.
