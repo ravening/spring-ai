@@ -2,6 +2,8 @@ package com.example.bank.voice;
 
 import com.openai.client.OpenAIClient;
 
+import io.micrometer.observation.ObservationRegistry;
+
 import org.springframework.ai.openai.OpenAiAudioSpeechModel;
 import org.springframework.ai.openai.OpenAiAudioSpeechOptions;
 import org.springframework.ai.openai.OpenAiAudioTranscriptionModel;
@@ -16,7 +18,7 @@ import org.springframework.util.Assert;
  * through DeepRelay, which does not proxy the OpenAI audio endpoints, so these
  * beans use their own base URL and API key (AUDIO_BASE_URL / AUDIO_API_KEY) and
  * are only created when bank.voice.enabled=true. The stock OpenAI audio
- * auto-configurations are disabled via spring.ai.model.audio-*: none.
+ * auto-configurations are disabled via spring.ai.model.audio.speech/transcription: none.
  */
 @Configuration
 @ConditionalOnProperty(prefix = "bank.voice", name = "enabled", havingValue = "true")
@@ -26,6 +28,7 @@ public class VoiceConfig {
     public OpenAiAudioSpeechModel speechModel(VoiceProperties props) {
         return OpenAiAudioSpeechModel.builder()
                 .openAiClient(openAiClient(props))
+                .observationRegistry(ObservationRegistry.NOOP)
                 .options(OpenAiAudioSpeechOptions.builder()
                         .model(props.ttsModel())
                         .voice(props.ttsVoice())
@@ -40,6 +43,7 @@ public class VoiceConfig {
         return OpenAiAudioTranscriptionModel.builder()
                 .openAiClient(client)
                 .openAiClientAsync(client.async())
+                .observationRegistry(ObservationRegistry.NOOP)
                 .options(OpenAiAudioTranscriptionOptions.builder()
                         .model(props.sttModel())
                         .build())

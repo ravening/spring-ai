@@ -24,8 +24,9 @@ spring:
       # Voice models are built by com.example.bank.voice.VoiceConfig from bank.voice.*
       # (DeepRelay does not proxy the OpenAI audio endpoints), so the stock OpenAI
       # audio auto-configurations stay off.
-      audio-speech: none
-      audio-transcription: none
+      audio:
+        speech: none
+        transcription: none
     embedding:
       transformer:
         cache:
