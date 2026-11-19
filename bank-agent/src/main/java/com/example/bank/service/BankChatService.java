@@ -27,6 +27,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import reactor.core.publisher.Flux;
+
 /**
  * Entry point for chat messages. Runs are asynchronous: the user message is
  * persisted immediately and the agent team runs on a background executor, so the
@@ -97,10 +99,20 @@ public class BankChatService {
         return run.snapshot();
     }
 
+    /** Live answer-token stream for a run (SSE); 404 when the run does not exist. */
+    public Flux<RunRecord.AnswerEvent> answerStream(String runId) {
+        RunRecord run = runRegistry.get(runId);
+        if (run == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Run not found");
+        }
+        return run.answerEvents();
+    }
+
     private void execute(RunRecord run, String message) {
         AgentTrace trace = run.trace();
         try {
-            String answer = orchestrator.run(run.userId(), run.conversationId(), message, trace);
+            String answer = orchestrator.run(run.userId(), run.conversationId(), message, trace,
+                    run::emitAnswerEvent);
             conversations.addAssistantMessage(run.conversationId(), answer);
             synthesizeSpeech(run.runId(), answer);
             runRegistry.complete(run.runId(), answer);

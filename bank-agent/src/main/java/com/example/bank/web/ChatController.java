@@ -13,6 +13,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+
+import reactor.core.publisher.Flux;
 
 @RestController
 @RequestMapping("/api")
@@ -48,6 +51,27 @@ public class ChatController {
     @GetMapping("/runs/{runId}")
     public RunRecord.RunStatus runStatus(@PathVariable String runId) {
         return chatService.status(runId);
+    }
+
+    /**
+     * Server-sent event stream of the answer as the writer produces it. Events:
+     * {@code draft} (a new/revised draft starts), {@code delta} (JSON {@code {draft, delta}}),
+     * then {@code done}. Falls back to plain polling when the browser has no EventSource.
+     */
+    @GetMapping(value = "/runs/{runId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<StreamPayload>> runStream(@PathVariable String runId) {
+        return this.chatService.answerStream(runId)
+                .map(ev -> ServerSentEvent.<StreamPayload>builder()
+                        .event(ev.newDraft() ? "draft" : "delta")
+                        .data(new StreamPayload(ev.newDraft(), ev.delta()))
+                        .build())
+                .concatWith(Flux.just(ServerSentEvent.<StreamPayload>builder()
+                        .event("done")
+                        .data(new StreamPayload(false, ""))
+                        .build()));
+    }
+
+    public record StreamPayload(boolean draft, String delta) {
     }
 
     /**

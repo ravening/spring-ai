@@ -167,6 +167,11 @@ button.block { width: 100%; }
 .message-body code { background: rgba(0, 0, 0, 0.07); padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
 .message-body pre { background: #0f1b33; color: #d7e3ff; padding: 10px 12px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; }
 .message-body pre code { background: transparent; padding: 0; }
+.message-body table { border-collapse: collapse; margin: 6px 0 10px; font-size: 13px; display: block; overflow-x: auto; }
+.message-body th, .message-body td { border: 1px solid var(--border); padding: 5px 10px; text-align: left; }
+.message-body th { background: rgba(127, 140, 170, 0.15); font-weight: 600; }
+.message-body li { margin: 2px 0; }
+.message-body blockquote { margin: 6px 0; padding-left: 10px; border-left: 3px solid var(--border); color: var(--muted); }
 .message.user .message-body code { background: rgba(255, 255, 255, 0.2); }
 
 .trace-panel {

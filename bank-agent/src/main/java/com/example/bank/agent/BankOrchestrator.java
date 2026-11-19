@@ -1,6 +1,7 @@
 package com.example.bank.agent;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import com.example.bank.core.AgentTrace;
 import com.example.bank.core.PromptSafety;
@@ -58,7 +59,8 @@ public class BankOrchestrator {
         this.maxRevisions = Math.max(0, maxRevisions);
     }
 
-    public String run(String userId, String conversationId, String message, AgentTrace trace) {
+    public String run(String userId, String conversationId, String message, AgentTrace trace,
+            Consumer<RunRecord.AnswerEvent> answerSink) {
         trace.event("run_started", "orchestrator", "Task: " + AgentSupport.truncate(message, 500), null, null);
 
         String goal = buildGoal(userId, conversationId, message);
@@ -71,10 +73,10 @@ public class BankOrchestrator {
                 AgentSupport.truncate(domainOutput, 4000), durationMs);
 
         StepResult step = new StepResult(route.intent(), route.note(), domainOutput);
-        String draft = writer.synthesize(goal, List.of(step), trace);
+        String draft = writer.synthesize(goal, List.of(step), trace, answerSink);
         trace.event("draft_ready", "writer", "Writer produced a draft", null, null);
 
-        String finalAnswer = reviewAndRevise(goal, draft, List.of(step), trace);
+        String finalAnswer = reviewAndRevise(goal, draft, List.of(step), trace, answerSink);
         trace.event("run_completed", "orchestrator", "Banking run completed", null, null);
         return finalAnswer;
     }
@@ -95,13 +97,14 @@ public class BankOrchestrator {
     }
 
     /** Reviews the draft and asks the writer to revise at most maxRevisions times. */
-    private String reviewAndRevise(String goal, String draft, List<StepResult> results, AgentTrace trace) {
+    private String reviewAndRevise(String goal, String draft, List<StepResult> results, AgentTrace trace,
+            Consumer<RunRecord.AnswerEvent> answerSink) {
         Review review = critic.review(goal, draft, results, trace);
         int revisions = 0;
         while (!review.approved() && revisions < maxRevisions) {
             trace.event("review", "critic", "Issues found", review.feedback(), null);
             revisions++;
-            draft = writer.revise(goal, draft, review.feedback(), trace);
+            draft = writer.revise(goal, draft, review.feedback(), trace, answerSink);
             trace.event("revision", "writer", "Writer revised the answer (" + revisions + ")", null, null);
             review = critic.review(goal, draft, results, trace);
         }

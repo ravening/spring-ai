@@ -1,10 +1,13 @@
 package com.example.bank.agent;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RunRegistryTest {
@@ -49,5 +52,27 @@ class RunRegistryTest {
         run.trace().event("run_started", "orchestrator", "go", null, null);
         assertEquals(1, registry.get(run.runId()).snapshot().events().size());
         assertEquals("conv-3", run.trace().conversationId());
+    }
+
+    @Test
+    void answerStreamEmitsDraftAndDeltasThenCompletes() {
+        RunRecord run = registry.start("conv-4", "dave", "balance?");
+        run.emitAnswerEvent(new RunRecord.AnswerEvent(true, ""));
+        run.emitAnswerEvent(new RunRecord.AnswerEvent(false, "Your "));
+        run.emitAnswerEvent(new RunRecord.AnswerEvent(false, "balance is 1.00 EUR."));
+        run.complete("Your balance is 1.00 EUR.");
+
+        List<RunRecord.AnswerEvent> events = run.answerEvents().collectList().block();
+        assertEquals(3, events.size());
+        assertTrue(events.get(0).newDraft());
+        assertEquals("Your ", events.get(1).delta());
+        assertEquals("balance is 1.00 EUR.", events.get(2).delta());
+    }
+
+    @Test
+    void failedRunErrorsTheAnswerStream() {
+        RunRecord run = registry.start("conv-5", "erin", "hi");
+        run.fail("boom");
+        assertThrows(RuntimeException.class, () -> run.answerEvents().collectList().block());
     }
 }

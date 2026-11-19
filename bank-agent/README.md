@@ -89,6 +89,7 @@ for app-internal capabilities (RAG retrieval, arithmetic, time).
 | `POST /api/chat` | `{userId, conversationId?, message}` → `202 {conversationId, runId}` |
 | `POST /api/chat/voice` | multipart `audio`, `userId`, `conversationId?` → transcribes, then `202 {conversationId, runId}` (503 when voice is disabled) |
 | `GET /api/runs/{runId}` | run status + live events/tool calls + final answer (+ `message`, the transcript for voice runs) |
+| `GET /api/runs/{runId}/stream` | SSE stream of the answer while the writer produces it (`draft` / `delta` / `done` events) |
 | `GET /api/runs/{runId}/audio` | `audio/mpeg` spoken answer (404 when no audio for the run) |
 | `GET /api/conversations?userId=` | list with `active` flag and `activeRunId` |
 | `POST /api/conversations` | `{userId}` → create |
@@ -127,6 +128,13 @@ speech (no server config needed, works on `localhost`): `SpeechRecognition` /
 `webkitSpeechRecognition` transcribes the mic input and sends it to the regular
 `POST /api/chat`, and `speechSynthesis` speaks the answer aloud. The UI picks the mode
 from `GET /api/voice/status` (`{stt, tts}`); browser recognition needs Chrome/Edge.
+
+Answers stream live: `GET /api/runs/{runId}/stream` (SSE) sends the writer's answer
+token by token (`draft` starts a new/revised draft, `delta` carries text, `done` ends
+the stream); the UI renders it progressively and still polls `GET /api/runs/{runId}`
+for status/trace. Answers are Markdown and rendered with marked + DOMPurify, so
+paragraphs, *italics*, bullet/numbered lists, code and tables (styled in `styles.css`)
+display properly; the writer is prompted to use tables for side-by-side figures.
 
 The embedding model (all-MiniLM-L6-v2, ~87 MB) is downloaded once into
 `data/model-cache` on first start, so RAG works without any embedding API key.

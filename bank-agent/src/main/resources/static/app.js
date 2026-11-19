@@ -463,10 +463,44 @@ async function sendVoice(blob) {
     }
 }
 
+function startAnswerStream(runId, poll) {
+    if (!window.EventSource) return null;
+    let current = "";
+    let source;
+    try {
+        source = new EventSource("/api/runs/" + encodeURIComponent(runId) + "/stream");
+    } catch {
+        return null;
+    }
+    source.addEventListener("draft", () => {
+        current = "";
+        if (!poll.streamBubble) {
+            poll.streamBubble = appendMessage("assistant", "", { pending: true });
+        } else {
+            poll.streamBubble.querySelector(".message-body").innerHTML = "";
+        }
+    });
+    source.addEventListener("delta", (ev) => {
+        let delta = "";
+        try { delta = JSON.parse(ev.data).delta || ""; } catch { delta = ev.data; }
+        current += delta;
+        if (poll.streamBubble) {
+            poll.streamBubble.querySelector(".message-body").innerHTML = renderMarkdown(current);
+            scrollToBottom();
+        }
+    });
+    source.addEventListener("done", () => source.close());
+    source.onerror = () => {
+        source.close();
+        if (poll.stream === source) poll.stream = null;
+    };
+    return source;
+}
+
 function startRunPoll(runId) {
     if (state.runPolls.has(runId)) return;
     showTrace();
-    const poll = { runId: runId, timer: null };
+    const poll = { runId: runId, timer: null, stream: null, streamBubble: null };
     const tick = async () => {
         try {
             const run = await api("/api/runs/" + encodeURIComponent(runId));
@@ -474,7 +508,15 @@ function startRunPoll(runId) {
             if (run.status === "COMPLETED") {
                 stopRunPoll(runId);
                 const answer = run.answer || "(empty answer)";
-                const bubble = appendMessage("assistant", answer);
+                let bubble;
+                if (poll.streamBubble) {
+                    bubble = poll.streamBubble;
+                    const body = bubble.querySelector(".message-body");
+                    body.innerHTML = renderMarkdown(answer);
+                    body.classList.remove("pending");
+                } else {
+                    bubble = appendMessage("assistant", answer);
+                }
                 const play = el("button", "ghost play-audio", "🔊");
                 play.type = "button";
                 play.title = "Play the answer";
@@ -499,6 +541,7 @@ function startRunPoll(runId) {
         }
     };
     poll.timer = setInterval(tick, 1500);
+    poll.stream = startAnswerStream(runId, poll);
     state.runPolls.set(runId, poll);
     tick();
 }
@@ -507,6 +550,7 @@ function stopRunPoll(runId) {
     const poll = state.runPolls.get(runId);
     if (poll) {
         clearInterval(poll.timer);
+        if (poll.stream) poll.stream.close();
         state.runPolls.delete(runId);
     }
 }
