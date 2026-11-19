@@ -2,7 +2,9 @@ package com.example.bank.web;
 
 import java.util.List;
 
+import com.example.bank.auth.AuthSupport;
 import com.example.bank.chat.ConversationService;
+import jakarta.servlet.http.HttpServletRequest;
 import com.example.bank.knowledge.DocumentService;
 import com.example.bank.users.UserDirectory;
 
@@ -39,10 +41,12 @@ public class DocumentController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public DocumentService.DocumentInfo upload(
+            HttpServletRequest http,
             @RequestParam("file") MultipartFile file,
             @RequestParam String userId,
             @RequestParam(defaultValue = "chat") String scope,
             @RequestParam(required = false) String conversationId) {
+        userId = AuthSupport.currentUserId(http, userId);
         users.resolve(userId);
         if ("chat".equalsIgnoreCase(scope)) {
             if (conversationId == null || conversationId.isBlank()) {
@@ -56,8 +60,10 @@ public class DocumentController {
 
     @GetMapping
     public List<DocumentService.DocumentInfo> list(
+            HttpServletRequest http,
             @RequestParam String userId,
             @RequestParam(required = false) String conversationId) {
+        userId = AuthSupport.currentUserId(http, userId);
         users.resolve(userId);
         if (conversationId != null && !conversationId.isBlank()) {
             conversationService.ensureOwnership(conversationId, userId);
@@ -68,7 +74,9 @@ public class DocumentController {
 
     @DeleteMapping("/{documentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable String documentId, @RequestParam String userId) {
+    public void delete(HttpServletRequest http, @PathVariable String documentId,
+            @RequestParam String userId) {
+        userId = AuthSupport.currentUserId(http, userId);
         users.resolve(userId);
         documentService.delete(documentId, userId);
     }

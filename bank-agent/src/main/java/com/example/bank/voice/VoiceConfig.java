@@ -1,6 +1,10 @@
 package com.example.bank.voice;
 
 import com.openai.client.OpenAIClient;
+import com.openai.client.OpenAIClientImpl;
+import com.openai.core.ClientOptions;
+
+import org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient;
 
 import io.micrometer.observation.ObservationRegistry;
 
@@ -52,6 +56,11 @@ public class VoiceConfig {
 
     private OpenAIClient openAiClient(VoiceProperties props) {
         Assert.hasText(props.apiKey(), "bank.voice.api-key (AUDIO_API_KEY) is required when bank.voice.enabled=true");
-        return OpenAIClient.builder().baseUrl(props.baseUrl()).apiKey(props.apiKey()).build();
+        ClientOptions options = ClientOptions.builder()
+                .httpClient(SpringAiOpenAiHttpClient.builder().build())
+                .baseUrl(props.baseUrl())
+                .apiKey(props.apiKey())
+                .build();
+        return new OpenAIClientImpl(options);
     }
 }

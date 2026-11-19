@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import com.example.bank.auth.AuthSupport;
 import com.example.bank.agent.RunRecord;
+import jakarta.servlet.http.HttpServletRequest;
 import com.example.bank.service.BankChatService;
 import com.example.bank.voice.VoiceProperties;
 
@@ -42,9 +44,11 @@ public class ChatController {
      * trace events, tool calls and the final answer.
      */
     @PostMapping("/chat")
-    public ResponseEntity<BankChatService.StartRunResponse> chat(@RequestBody ChatRequest request) {
+    public ResponseEntity<BankChatService.StartRunResponse> chat(HttpServletRequest http,
+            @RequestBody ChatRequest request) {
+        String userId = AuthSupport.currentUserId(http, request.userId());
         BankChatService.StartRunResponse started = chatService.submit(
-                request.userId(), request.conversationId(), request.message());
+                userId, request.conversationId(), request.message());
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(started);
     }
 

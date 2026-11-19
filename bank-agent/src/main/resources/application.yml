@@ -48,6 +48,12 @@ spring:
           enabled: false
 
 bank:
+  auth:
+    enabled: ${BANK_AUTH_ENABLED:false}
+    tokens: ${BANK_AUTH_TOKENS:}
+  push:
+    enabled: ${BANK_PUSH_ENABLED:false}
+    url: ${BANK_PUSH_URL:https://exp.host/--/api/v2/push/send}
   mcp:
     enabled: ${BANK_MCP_ENABLED:true}
     url: ${BANK_MCP_URL:http://localhost:8096}

@@ -16,6 +16,7 @@ import com.example.bank.chat.ConversationService;
 import com.example.bank.core.AgentTrace;
 import com.example.bank.core.ConversationId;
 import com.example.bank.core.PromptSafety;
+import com.example.bank.push.PushService;
 import com.example.bank.users.BankUser;
 import com.example.bank.users.UserDirectory;
 import com.example.bank.voice.VoiceProperties;
@@ -46,17 +47,20 @@ public class BankChatService {
     private final RunRegistry runRegistry;
     private final ObjectProvider<TextToSpeechModel> speechModel;
     private final VoiceProperties voice;
+    private final PushService push;
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
 
     public BankChatService(UserDirectory users, ConversationService conversations,
             BankOrchestrator orchestrator, RunRegistry runRegistry,
-            ObjectProvider<TextToSpeechModel> speechModel, VoiceProperties voice) {
+            ObjectProvider<TextToSpeechModel> speechModel, VoiceProperties voice,
+            PushService push) {
         this.users = users;
         this.conversations = conversations;
         this.orchestrator = orchestrator;
         this.runRegistry = runRegistry;
         this.speechModel = speechModel;
         this.voice = voice;
+        this.push = push;
     }
 
     public record StartRunResponse(String conversationId, String runId) {
@@ -115,6 +119,12 @@ public class BankChatService {
                     run::emitAnswerEvent);
             conversations.addAssistantMessage(run.conversationId(), answer);
             synthesizeSpeech(run.runId(), answer);
+            String summary = answer.replaceAll("\\s+", " ").trim();
+            if (summary.length() > 140) {
+                summary = summary.substring(0, 137) + "...";
+            }
+            push.notifyRunCompleted(run.userId(), run.runId(), run.conversationId(),
+                    "Answer ready", summary);
             runRegistry.complete(run.runId(), answer);
         }
         catch (Exception ex) {

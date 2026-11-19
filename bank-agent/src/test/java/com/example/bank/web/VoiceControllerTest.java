@@ -92,6 +92,7 @@ class VoiceControllerTest {
                         .param("userId", "alice"))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.conversationId").value("conv-1"))
-                .andExpect(jsonPath("$.runId").value("run-1"));
+                .andExpect(jsonPath("$.runId").value("run-1"))
+                .andExpect(jsonPath("$.message").value("transfer 10 EUR to bob"));
     }
 }

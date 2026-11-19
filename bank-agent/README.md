@@ -87,7 +87,7 @@ for app-internal capabilities (RAG retrieval, arithmetic, time).
 |---|---|
 | `GET /api/users` | demo customers |
 | `POST /api/chat` | `{userId, conversationId?, message}` → `202 {conversationId, runId}` |
-| `POST /api/chat/voice` | multipart `audio`, `userId`, `conversationId?` → transcribes, then `202 {conversationId, runId}` (503 when voice is disabled) |
+| `POST /api/chat/voice` | multipart `audio`, `userId`, `conversationId?` → transcribes, then `202 {conversationId, runId, message}` where `message` is the transcript, so the UI can show the question immediately (503 when voice is disabled) |
 | `GET /api/runs/{runId}` | run status + live events/tool calls + final answer (+ `message`, the transcript for voice runs) |
 | `GET /api/runs/{runId}/stream` | SSE stream of the answer while the writer produces it (`draft` / `delta` / `done` events) |
 | `GET /api/runs/{runId}/audio` | `audio/mpeg` spoken answer (404 when no audio for the run) |
@@ -119,7 +119,8 @@ for app-internal capabilities (RAG retrieval, arithmetic, time).
 Voice chat: with server voice enabled, the browser records audio (`MediaRecorder`)
 and posts it to `POST /api/chat/voice`; the server transcribes it (STT) and runs the
 normal agent pipeline, so the transcript is stored in `spring_ai_chat_memory` like any
-typed message. After the run completes, the answer is synthesized to MP3
+typed message. The transcript is returned in the voice-chat response and shown in the
+user bubble immediately. After the run completes, the answer is synthesized to MP3
 (`data/audio/<runId>.mp3`) and played in the UI next to the text bubble
 (`GET /api/runs/{runId}/audio`).
 

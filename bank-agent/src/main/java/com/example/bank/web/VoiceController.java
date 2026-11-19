@@ -5,7 +5,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
+import com.example.bank.auth.AuthSupport;
 import com.example.bank.service.BankChatService;
+import jakarta.servlet.http.HttpServletRequest;
 import com.example.bank.voice.VoiceProperties;
 
 import org.springframework.ai.audio.transcription.TranscriptionModel;
@@ -57,11 +59,21 @@ public class VoiceController {
                 "tts", this.speechModel.getIfAvailable() != null);
     }
 
+    /**
+     * The transcript is already known when the run starts, so it is returned in the
+     * 202 response. That lets the UI show the question the user actually asked
+     * immediately instead of a "transcribing…" placeholder until the run finishes.
+     */
+    public record VoiceStartResponse(String conversationId, String runId, String message) {
+    }
+
     @PostMapping(value = "/chat/voice", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<BankChatService.StartRunResponse> voiceChat(
+    public ResponseEntity<VoiceStartResponse> voiceChat(
+            HttpServletRequest http,
             @RequestParam("userId") String userId,
             @RequestParam(value = "conversationId", required = false) String conversationId,
             @RequestParam("audio") MultipartFile audio) throws IOException {
+        userId = AuthSupport.currentUserId(http, userId);
         TranscriptionModel model = this.transcriptionModel.getIfAvailable();
         if (model == null) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
@@ -79,8 +91,9 @@ public class VoiceController {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Could not transcribe any speech from the audio");
             }
+            BankChatService.StartRunResponse started = this.chatService.submit(userId, conversationId, text);
             return ResponseEntity.status(HttpStatus.ACCEPTED)
-                    .body(this.chatService.submit(userId, conversationId, text));
+                    .body(new VoiceStartResponse(started.conversationId(), started.runId(), text));
         }
         finally {
             Files.deleteIfExists(temp);

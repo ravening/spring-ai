@@ -48,6 +48,7 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let recognition = null;
 let recording = false;
+let voiceCapture = null; // active browser-STT session: accumulated text + live preview bubble
 
 async function api(path, options = {}) {
     const response = await fetch(path, options);
@@ -327,10 +328,19 @@ function setRecordingUi(on) {
 }
 
 function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
-    if (recognition) {
-        try { recognition.stop(); } catch { /* already stopped */ }
+    if (state.voiceMode === "browser" && voiceCapture) {
+        // User pressed ⏹: finalize whatever was captured and send it.
+        voiceCapture.stopping = true;
+        if (voiceCapture.restartTimer) clearTimeout(voiceCapture.restartTimer);
+        setRecordingUi(false);
+        if (recognition) {
+            try { recognition.stop(); } catch { finalizeVoiceCapture(); }
+        } else {
+            finalizeVoiceCapture();
+        }
+        return;
     }
+    if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
 }
 
 async function toggleMic() {
@@ -368,6 +378,31 @@ async function toggleMic() {
     }
 }
 
+function updateVoicePreview() {
+    if (!voiceCapture) return;
+    const text = (voiceCapture.final + (voiceCapture.interim ? " " + voiceCapture.interim : "")).trim();
+    if (!text && !voiceCapture.preview) return;
+    if (!voiceCapture.preview) {
+        voiceCapture.preview = appendMessage("user", "", { pending: true });
+    }
+    voiceCapture.preview.querySelector(".message-body").textContent = "🎙 " + (text || "listening…");
+}
+
+function finalizeVoiceCapture() {
+    const cap = voiceCapture;
+    voiceCapture = null;
+    recognition = null;
+    if (!cap) return;
+    if (cap.restartTimer) clearTimeout(cap.restartTimer);
+    const text = (cap.final + (cap.interim ? " " + cap.interim : "")).trim();
+    if (cap.preview) cap.preview.remove();
+    if (text) {
+        sendBrowserVoice(text);
+    } else {
+        toast("No transcript captured. Press 🎙, speak, then press ⏹ when you're done.", true);
+    }
+}
+
 function startBrowserRecognition() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
@@ -376,24 +411,89 @@ function startBrowserRecognition() {
         return;
     }
     recognition = new SR();
-    recognition.lang = navigator.language || "en-US";
-    recognition.interimResults = false;
+    // Pin to a locale Chrome's speech service always has a model for. Using
+    // navigator.language can yield a locale that produces no results at all.
+    recognition.lang = "en-US";
+    // continuous = keep listening through pauses instead of ending after ~3-5s.
+    recognition.continuous = true;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
+
+    voiceCapture = { final: "", interim: "", preview: null, stopping: false, restarts: 0, restartTimer: null };
+    const vlog = (event, detail) => console.log("[voice]", event, detail === undefined ? "" : detail);
+
+    recognition.onstart = () => vlog("onstart");
+    recognition.onaudiostart = () => vlog("audiostart");
+    recognition.onspeechstart = () => vlog("speechstart");
+    recognition.onspeechend = () => vlog("speechend");
     recognition.onresult = (ev) => {
-        const text = ev.results[ev.results.length - 1][0].transcript.trim();
-        if (text) sendBrowserVoice(text);
+        // With continuous=true, ev.results holds every result from this session;
+        // rebuild the full text each time instead of taking only the last one.
+        let final = "";
+        let interim = "";
+        for (let i = 0; i < ev.results.length; i++) {
+            const result = ev.results[i];
+            if (result.isFinal) final += result[0].transcript;
+            else interim += result[0].transcript;
+        }
+        voiceCapture.final = final.trim();
+        voiceCapture.interim = interim.trim();
+        vlog("result", voiceCapture.final + " | " + voiceCapture.interim);
+        updateVoicePreview();
     };
     recognition.onerror = (ev) => {
-        if (ev.error !== "aborted" && ev.error !== "no-speech") {
+        vlog("error", ev.error);
+        if (ev.error === "no-speech") {
+            // Expected while the user is thinking; stay in listening mode.
+            return;
+        }
+        if (ev.error !== "aborted") {
             toast("Speech recognition error: " + ev.error, true);
         }
     };
-    recognition.onend = () => setRecordingUi(false);
+    recognition.onend = () => {
+        vlog("onend", voiceCapture && voiceCapture.stopping ? "stopped by user" : "ended by browser");
+        if (!voiceCapture) return;
+        if (voiceCapture.stopping) {
+            finalizeVoiceCapture();
+            return;
+        }
+        // Chrome may still end the session after a pause. Restart it so the mic
+        // keeps waiting for the user until they explicitly press ⏹.
+        if (recording && voiceCapture.restarts < 20) {
+            voiceCapture.restarts++;
+            voiceCapture.restartTimer = setTimeout(() => {
+                if (!recording || !voiceCapture) return;
+                try {
+                    recognition.start();
+                    vlog("restarted", voiceCapture.restarts);
+                } catch (ex) {
+                    vlog("restart failed", ex.message);
+                    finalizeVoiceCapture();
+                }
+            }, 150);
+        } else {
+            setRecordingUi(false);
+            finalizeVoiceCapture();
+        }
+    };
+
+    if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: "microphone" }).then((result) => {
+            vlog("mic permission", result.state);
+            if (result.state === "denied") {
+                toast("Microphone access is blocked. Allow it for this site (and in macOS System Settings → Privacy & Security → Microphone).", true);
+            }
+        }).catch(() => {});
+    }
+
+    updateVoicePreview(); // show "🎙 listening…" immediately
     try {
         recognition.start();
         setRecordingUi(true);
     } catch (ex) {
         setRecordingUi(false);
+        vlog("start failed", ex.message);
         toast("Could not start speech recognition: " + ex.message, true);
     }
 }
@@ -448,7 +548,8 @@ async function sendVoice(blob) {
         form.append("userId", state.userId);
         if (state.conversationId) form.append("conversationId", state.conversationId);
         const started = await api("/api/chat/voice", { method: "POST", body: form });
-        await startChatRun(started, "🎙 transcribing…", true);
+        // The server transcribes before responding, so show the real question right away.
+        await startChatRun(started, "🎙 " + (started.message || "transcribing…"), true);
     } catch (ex) {
         if (ex.message && ex.message.includes("disabled")) {
             state.voiceMode = "browser";
@@ -505,6 +606,13 @@ function startRunPoll(runId) {
         try {
             const run = await api("/api/runs/" + encodeURIComponent(runId));
             renderTrace(run);
+            // Voice runs know the transcript as soon as the run exists. Show it on the
+            // first poll rather than waiting for the answer (fallback for older servers
+            // that do not return the transcript in the voice-chat response).
+            const voiceBubble = state.voiceBubbleByRun.get(runId);
+            if (voiceBubble && run.message) {
+                voiceBubble.querySelector(".message-body").textContent = "🎙 " + run.message;
+            }
             if (run.status === "COMPLETED") {
                 stopRunPoll(runId);
                 const answer = run.answer || "(empty answer)";
@@ -522,16 +630,13 @@ function startRunPoll(runId) {
                 play.title = "Play the answer";
                 play.addEventListener("click", () => playRunAudio(runId, answer));
                 bubble.appendChild(play);
-                const voiceBubble = state.voiceBubbleByRun.get(runId);
-                if (voiceBubble && run.message) {
-                    voiceBubble.querySelector(".message-body").textContent = "🎙 " + run.message;
-                }
                 state.voiceBubbleByRun.delete(runId);
                 playRunAudio(runId, answer);
                 hideTraceSoon();
                 await loadConversations();
             } else if (run.status === "FAILED") {
                 stopRunPoll(runId);
+                state.voiceBubbleByRun.delete(runId);
                 appendMessage("assistant", "⚠️ Something went wrong: " + (run.error || "unknown error"));
                 await loadConversations();
             }

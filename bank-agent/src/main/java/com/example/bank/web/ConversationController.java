@@ -5,7 +5,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
+import com.example.bank.auth.AuthSupport;
 import com.example.bank.agent.RunRegistry;
+import jakarta.servlet.http.HttpServletRequest;
 import com.example.bank.chat.ConversationService;
 import com.example.bank.knowledge.DocumentService;
 import com.example.bank.users.UserDirectory;
@@ -47,7 +49,8 @@ public class ConversationController {
     }
 
     @GetMapping
-    public List<ConversationSummary> list(@RequestParam String userId) {
+    public List<ConversationSummary> list(HttpServletRequest http, @RequestParam String userId) {
+        userId = AuthSupport.currentUserId(http, userId);
         users.resolve(userId);
         return conversationService.listForUser(userId).stream()
                 .map(this::summarize)
@@ -57,15 +60,17 @@ public class ConversationController {
     }
 
     @PostMapping
-    public ConversationSummary create(@RequestBody CreateConversationRequest request) {
-        var user = users.resolve(request.userId());
+    public ConversationSummary create(HttpServletRequest http, @RequestBody CreateConversationRequest request) {
+        var user = users.resolve(AuthSupport.currentUserId(http, request.userId()));
         String id = java.util.UUID.randomUUID().toString();
         conversationService.create(user.id(), id);
         return summarize(conversationService.get(id));
     }
 
     @GetMapping("/{conversationId}")
-    public ConversationDetail get(@PathVariable String conversationId, @RequestParam String userId) {
+    public ConversationDetail get(HttpServletRequest http, @PathVariable String conversationId,
+            @RequestParam String userId) {
+        userId = AuthSupport.currentUserId(http, userId);
         users.resolve(userId);
         conversationService.ensureOwnership(conversationId, userId);
         var row = conversationService.get(conversationId);
@@ -79,7 +84,9 @@ public class ConversationController {
 
     @DeleteMapping("/{conversationId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable String conversationId, @RequestParam String userId) {
+    public void delete(HttpServletRequest http, @PathVariable String conversationId,
+            @RequestParam String userId) {
+        userId = AuthSupport.currentUserId(http, userId);
         users.resolve(userId);
         conversationService.ensureOwnership(conversationId, userId);
         if (runRegistry.isActive(conversationId)) {
