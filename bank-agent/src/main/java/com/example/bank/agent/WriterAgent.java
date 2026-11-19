@@ -1,6 +1,7 @@
 package com.example.bank.agent;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import com.example.bank.core.AgentTrace;
 import com.example.bank.core.PromptSafety;
@@ -20,6 +21,10 @@ public class WriterAgent {
             should read. Never mention goals, instructions, plans, agents, reviewers,
             evidence, or that a constraint was satisfied. No meta-commentary.
             Honor explicit format limits in the request, such as "one sentence".
+            Format for readability: short paragraphs, bullet lists when there are several
+            items, *italics* for emphasis, and a Markdown table (| Column | ... |) when
+            presenting multiple figures, accounts or transactions side by side. Keep
+            tables to at most 5 columns.
 
             """ + PromptSafety.dataInstruction();
 
@@ -29,7 +34,8 @@ public class WriterAgent {
         this.chatClient = chatClientBuilder.clone().build();
     }
 
-    public String synthesize(String goal, List<StepResult> results, AgentTrace trace) {
+    public String synthesize(String goal, List<StepResult> results, AgentTrace trace,
+            Consumer<RunRecord.AnswerEvent> answerSink) {
         trace.activeAgent("writer");
         String user = """
                 Overall goal:
@@ -41,14 +47,11 @@ public class WriterAgent {
                 Write the complete final answer for the customer.
                 """.formatted(goal, AgentSupport.priorResults(results));
 
-        return chatClient.prompt()
-                .system(WRITER_SYSTEM + "\nThis is the final answer. Be complete but concise.")
-                .user(user)
-                .call()
-                .content();
+        return call(WRITER_SYSTEM + "\nThis is the final answer. Be complete but concise.", user, answerSink);
     }
 
-    public String revise(String goal, String draft, String review, AgentTrace trace) {
+    public String revise(String goal, String draft, String review, AgentTrace trace,
+            Consumer<RunRecord.AnswerEvent> answerSink) {
         trace.activeAgent("writer");
         String user = """
                 Overall goal:
@@ -65,10 +68,24 @@ public class WriterAgent {
                 revised answer in Markdown.
                 """.formatted(goal, PromptSafety.data(draft), PromptSafety.data(review));
 
-        return chatClient.prompt()
-                .system(WRITER_SYSTEM + "\nThis is the final answer. Return only the revised answer.")
-                .user(user)
-                .call()
-                .content();
+        return call(WRITER_SYSTEM + "\nThis is the final answer. Return only the revised answer.", user, answerSink);
+    }
+
+    /**
+     * Calls the model; when an answer sink is given, the response is streamed token by
+     * token (a {@code newDraft} event marks the start of each (re)written draft) and the
+     * full text is still returned for persistence.
+     */
+    private String call(String system, String user, Consumer<RunRecord.AnswerEvent> answerSink) {
+        var prompt = chatClient.prompt().system(system).user(user);
+        if (answerSink == null) {
+            return prompt.call().content();
+        }
+        answerSink.accept(new RunRecord.AnswerEvent(true, ""));
+        return prompt.stream().content()
+                .doOnNext(token -> answerSink.accept(new RunRecord.AnswerEvent(false, token)))
+                .collect(StringBuilder::new, StringBuilder::append)
+                .map(StringBuilder::toString)
+                .block();
     }
 }

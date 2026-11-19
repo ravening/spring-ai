@@ -87,7 +87,10 @@ for app-internal capabilities (RAG retrieval, arithmetic, time).
 |---|---|
 | `GET /api/users` | demo customers |
 | `POST /api/chat` | `{userId, conversationId?, message}` → `202 {conversationId, runId}` |
-| `GET /api/runs/{runId}` | run status + live events/tool calls + final answer |
+| `POST /api/chat/voice` | multipart `audio`, `userId`, `conversationId?` → transcribes, then `202 {conversationId, runId}` (503 when voice is disabled) |
+| `GET /api/runs/{runId}` | run status + live events/tool calls + final answer (+ `message`, the transcript for voice runs) |
+| `GET /api/runs/{runId}/stream` | SSE stream of the answer while the writer produces it (`draft` / `delta` / `done` events) |
+| `GET /api/runs/{runId}/audio` | `audio/mpeg` spoken answer (404 when no audio for the run) |
 | `GET /api/conversations?userId=` | list with `active` flag and `activeRunId` |
 | `POST /api/conversations` | `{userId}` → create |
 | `GET /api/conversations/{id}?userId=` | messages + visible documents + active flag |
@@ -108,6 +111,30 @@ for app-internal capabilities (RAG retrieval, arithmetic, time).
 | `BANK_CHAT_MEMORY_MAX_MESSAGES` | `40` |
 | `BANK_AGENTS_MAX_REVISIONS` | `2` |
 | `BANK_UPLOADS_DIR`, `BANK_EMBEDDING_CACHE_DIR` | `data/uploads`, `data/model-cache` |
+| `BANK_VOICE_ENABLED` | `false` — set `true` to enable voice chat (mic button in the UI) |
+| `AUDIO_API_KEY`, `AUDIO_BASE_URL` | required when voice is enabled; default base URL `https://api.openai.com/v1` (DeepRelay does not proxy the OpenAI audio endpoints, so STT/TTS use this separate key/endpoint) |
+| `AUDIO_STT_MODEL`, `AUDIO_TTS_MODEL`, `AUDIO_TTS_VOICE` | `whisper-1`, `gpt-4o-mini-tts`, `alloy` |
+| `BANK_VOICE_MAX_UPLOAD_BYTES`, `BANK_VOICE_MAX_TTS_CHARS`, `BANK_VOICE_AUDIO_DIR` | `10485760`, `4000`, `data/audio` |
+
+Voice chat: with server voice enabled, the browser records audio (`MediaRecorder`)
+and posts it to `POST /api/chat/voice`; the server transcribes it (STT) and runs the
+normal agent pipeline, so the transcript is stored in `spring_ai_chat_memory` like any
+typed message. After the run completes, the answer is synthesized to MP3
+(`data/audio/<runId>.mp3`) and played in the UI next to the text bubble
+(`GET /api/runs/{runId}/audio`).
+
+Without any voice API key, the UI automatically falls back to the browser's built-in
+speech (no server config needed, works on `localhost`): `SpeechRecognition` /
+`webkitSpeechRecognition` transcribes the mic input and sends it to the regular
+`POST /api/chat`, and `speechSynthesis` speaks the answer aloud. The UI picks the mode
+from `GET /api/voice/status` (`{stt, tts}`); browser recognition needs Chrome/Edge.
+
+Answers stream live: `GET /api/runs/{runId}/stream` (SSE) sends the writer's answer
+token by token (`draft` starts a new/revised draft, `delta` carries text, `done` ends
+the stream); the UI renders it progressively and still polls `GET /api/runs/{runId}`
+for status/trace. Answers are Markdown and rendered with marked + DOMPurify, so
+paragraphs, *italics*, bullet/numbered lists, code and tables (styled in `styles.css`)
+display properly; the writer is prompted to use tables for side-by-side figures.
 
 The embedding model (all-MiniLM-L6-v2, ~87 MB) is downloaded once into
 `data/model-cache` on first start, so RAG works without any embedding API key.

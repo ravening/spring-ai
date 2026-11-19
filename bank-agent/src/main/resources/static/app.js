@@ -9,6 +9,9 @@ const state = {
     documents: [],
     runPolls: new Map(),
     activeByConv: new Map(),
+    voiceBubbleByRun: new Map(),
+    voice: { stt: false, tts: false },
+    voiceMode: "server",
     sending: false
 };
 
@@ -37,8 +40,14 @@ const els = {
     composer: document.getElementById("composer"),
     chatInput: document.getElementById("chat-input"),
     sendButton: document.getElementById("send-button"),
+    micButton: document.getElementById("mic-button"),
     toast: document.getElementById("toast")
 };
+
+let mediaRecorder = null;
+let recordedChunks = [];
+let recognition = null;
+let recording = false;
 
 async function api(path, options = {}) {
     const response = await fetch(path, options);
@@ -246,6 +255,7 @@ function updateWorkingBadge() {
     const active = state.conversationId && state.activeByConv.has(state.conversationId);
     els.workingBadge.classList.toggle("hidden", !active);
     els.sendButton.disabled = Boolean(active);
+    els.micButton.disabled = Boolean(active) || state.voiceMode === "none";
     els.chatInput.placeholder = active
         ? "Waiting for the answer to your previous question…"
         : "Ask about your balance, spending, income, last transactions, card limits, bank fees… or upload a file first";
@@ -271,13 +281,7 @@ async function sendMessage(event) {
                 message: message
             })
         });
-        if (started.conversationId !== state.conversationId) {
-            state.conversationId = started.conversationId;
-            localStorage.setItem(CONV_KEY, started.conversationId);
-        }
-        appendMessage("user", message);
-        startRunPoll(started.runId);
-        await loadConversations();
+        await startChatRun(started, message, false);
     } catch (ex) {
         toast(ex.message, true);
         appendMessage("assistant", "⚠️ " + ex.message);
@@ -286,17 +290,244 @@ async function sendMessage(event) {
     }
 }
 
+function playRunAudio(runId, text) {
+    if (state.voice.tts) {
+        const audio = new Audio("/api/runs/" + encodeURIComponent(runId) + "/audio");
+        audio.play().catch(() => speakText(text));
+        return;
+    }
+    speakText(text);
+}
+
+function speakText(text) {
+    if (!("speechSynthesis" in window) || !text) return;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+}
+
+async function loadVoiceStatus() {
+    try {
+        state.voice = await api("/api/voice/status");
+    } catch {
+        state.voice = { stt: false, tts: false };
+    }
+    const hasBrowserRecognition = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+    state.voiceMode = state.voice.stt ? "server" : (hasBrowserRecognition ? "browser" : "none");
+    els.micButton.title = state.voiceMode === "server"
+        ? "Record a voice message (server speech-to-text)"
+        : state.voiceMode === "browser"
+            ? "Record a voice message (browser speech-to-text, no API key needed)"
+            : "Voice unavailable: enable server voice or use Chrome/Edge";
+}
+
+function setRecordingUi(on) {
+    recording = on;
+    els.micButton.classList.toggle("recording", on);
+    els.micButton.textContent = on ? "⏹" : "🎙";
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+    if (recognition) {
+        try { recognition.stop(); } catch { /* already stopped */ }
+    }
+}
+
+async function toggleMic() {
+    if (recording) {
+        stopRecording();
+        return;
+    }
+    if (state.voiceMode === "browser") {
+        startBrowserRecognition();
+        return;
+    }
+    if (state.voiceMode === "none") {
+        toast("No voice available: set BANK_VOICE_ENABLED+AUDIO_API_KEY on the server, or use Chrome/Edge (browser speech).", true);
+        return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast("Voice recording needs a secure context (HTTPS or localhost) and a browser with getUserMedia.", true);
+        return;
+    }
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = (ev) => { if (ev.data && ev.data.size) recordedChunks.push(ev.data); };
+        mediaRecorder.onstop = () => {
+            stream.getTracks().forEach((t) => t.stop());
+            setRecordingUi(false);
+            const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+            sendVoice(blob);
+        };
+        mediaRecorder.start();
+        setRecordingUi(true);
+    } catch (ex) {
+        toast("Microphone access denied: " + ex.message, true);
+    }
+}
+
+function startBrowserRecognition() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+        state.voiceMode = "none";
+        toast("This browser has no speech recognition; use Chrome or Edge.", true);
+        return;
+    }
+    recognition = new SR();
+    recognition.lang = navigator.language || "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (ev) => {
+        const text = ev.results[ev.results.length - 1][0].transcript.trim();
+        if (text) sendBrowserVoice(text);
+    };
+    recognition.onerror = (ev) => {
+        if (ev.error !== "aborted" && ev.error !== "no-speech") {
+            toast("Speech recognition error: " + ev.error, true);
+        }
+    };
+    recognition.onend = () => setRecordingUi(false);
+    try {
+        recognition.start();
+        setRecordingUi(true);
+    } catch (ex) {
+        setRecordingUi(false);
+        toast("Could not start speech recognition: " + ex.message, true);
+    }
+}
+
+async function sendBrowserVoice(text) {
+    if (!state.userId || state.sending) return;
+    if (state.conversationId && state.activeByConv.has(state.conversationId)) {
+        toast("This conversation is still working on the previous question.", true);
+        return;
+    }
+    state.sending = true;
+    try {
+        const started = await api("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                userId: state.userId,
+                conversationId: state.conversationId || null,
+                message: text
+            })
+        });
+        await startChatRun(started, "🎙 " + text, false);
+    } catch (ex) {
+        toast(ex.message, true);
+        appendMessage("assistant", "⚠️ " + ex.message);
+    } finally {
+        state.sending = false;
+    }
+}
+
+async function startChatRun(started, userBubbleText, voiceRun) {
+    if (started.conversationId !== state.conversationId) {
+        state.conversationId = started.conversationId;
+        localStorage.setItem(CONV_KEY, started.conversationId);
+    }
+    const bubble = appendMessage("user", userBubbleText);
+    if (voiceRun) state.voiceBubbleByRun.set(started.runId, bubble);
+    startRunPoll(started.runId);
+    await loadConversations();
+}
+
+async function sendVoice(blob) {
+    if (!state.userId || state.sending) return;
+    if (state.conversationId && state.activeByConv.has(state.conversationId)) {
+        toast("This conversation is still working on the previous question.", true);
+        return;
+    }
+    state.sending = true;
+    try {
+        const form = new FormData();
+        form.append("audio", blob, "voice-message.webm");
+        form.append("userId", state.userId);
+        if (state.conversationId) form.append("conversationId", state.conversationId);
+        const started = await api("/api/chat/voice", { method: "POST", body: form });
+        await startChatRun(started, "🎙 transcribing…", true);
+    } catch (ex) {
+        if (ex.message && ex.message.includes("disabled")) {
+            state.voiceMode = "browser";
+            state.voice.stt = false;
+            toast("Server voice is disabled; switched to browser speech-to-text. Click the mic again.", true);
+        } else {
+            toast(ex.message, true);
+            appendMessage("assistant", "⚠️ " + ex.message);
+        }
+    } finally {
+        state.sending = false;
+    }
+}
+
+function startAnswerStream(runId, poll) {
+    if (!window.EventSource) return null;
+    let current = "";
+    let source;
+    try {
+        source = new EventSource("/api/runs/" + encodeURIComponent(runId) + "/stream");
+    } catch {
+        return null;
+    }
+    source.addEventListener("draft", () => {
+        current = "";
+        if (!poll.streamBubble) {
+            poll.streamBubble = appendMessage("assistant", "", { pending: true });
+        } else {
+            poll.streamBubble.querySelector(".message-body").innerHTML = "";
+        }
+    });
+    source.addEventListener("delta", (ev) => {
+        let delta = "";
+        try { delta = JSON.parse(ev.data).delta || ""; } catch { delta = ev.data; }
+        current += delta;
+        if (poll.streamBubble) {
+            poll.streamBubble.querySelector(".message-body").innerHTML = renderMarkdown(current);
+            scrollToBottom();
+        }
+    });
+    source.addEventListener("done", () => source.close());
+    source.onerror = () => {
+        source.close();
+        if (poll.stream === source) poll.stream = null;
+    };
+    return source;
+}
+
 function startRunPoll(runId) {
     if (state.runPolls.has(runId)) return;
     showTrace();
-    const poll = { runId: runId, timer: null };
+    const poll = { runId: runId, timer: null, stream: null, streamBubble: null };
     const tick = async () => {
         try {
             const run = await api("/api/runs/" + encodeURIComponent(runId));
             renderTrace(run);
             if (run.status === "COMPLETED") {
                 stopRunPoll(runId);
-                appendMessage("assistant", run.answer || "(empty answer)");
+                const answer = run.answer || "(empty answer)";
+                let bubble;
+                if (poll.streamBubble) {
+                    bubble = poll.streamBubble;
+                    const body = bubble.querySelector(".message-body");
+                    body.innerHTML = renderMarkdown(answer);
+                    body.classList.remove("pending");
+                } else {
+                    bubble = appendMessage("assistant", answer);
+                }
+                const play = el("button", "ghost play-audio", "🔊");
+                play.type = "button";
+                play.title = "Play the answer";
+                play.addEventListener("click", () => playRunAudio(runId, answer));
+                bubble.appendChild(play);
+                const voiceBubble = state.voiceBubbleByRun.get(runId);
+                if (voiceBubble && run.message) {
+                    voiceBubble.querySelector(".message-body").textContent = "🎙 " + run.message;
+                }
+                state.voiceBubbleByRun.delete(runId);
+                playRunAudio(runId, answer);
                 hideTraceSoon();
                 await loadConversations();
             } else if (run.status === "FAILED") {
@@ -310,6 +541,7 @@ function startRunPoll(runId) {
         }
     };
     poll.timer = setInterval(tick, 1500);
+    poll.stream = startAnswerStream(runId, poll);
     state.runPolls.set(runId, poll);
     tick();
 }
@@ -318,6 +550,7 @@ function stopRunPoll(runId) {
     const poll = state.runPolls.get(runId);
     if (poll) {
         clearInterval(poll.timer);
+        if (poll.stream) poll.stream.close();
         state.runPolls.delete(runId);
     }
 }
@@ -462,6 +695,7 @@ els.userSelect.addEventListener("change", async () => {
 
 els.newConversation.addEventListener("click", newConversation);
 els.composer.addEventListener("submit", sendMessage);
+els.micButton.addEventListener("click", toggleMic);
 els.refreshMcp.addEventListener("click", async () => { await loadMcpStatus(); toast("MCP status refreshed"); });
 els.toolsButton.addEventListener("click", showTools);
 els.toolsClose.addEventListener("click", () => els.toolsModal.classList.add("hidden"));
@@ -479,6 +713,7 @@ els.fileInput.addEventListener("change", () => {
 
 (async function init() {
     await loadUsers();
+    loadVoiceStatus();
     loadMcpStatus();
     await loadConversations();
     if (state.conversationId) {

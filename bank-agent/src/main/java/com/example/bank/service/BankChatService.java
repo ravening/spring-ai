@@ -1,5 +1,7 @@
 package com.example.bank.service;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -16,10 +18,16 @@ import com.example.bank.core.ConversationId;
 import com.example.bank.core.PromptSafety;
 import com.example.bank.users.BankUser;
 import com.example.bank.users.UserDirectory;
+import com.example.bank.voice.VoiceProperties;
 
+import org.springframework.ai.audio.tts.TextToSpeechModel;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
+
+import reactor.core.publisher.Flux;
 
 /**
  * Entry point for chat messages. Runs are asynchronous: the user message is
@@ -36,14 +44,19 @@ public class BankChatService {
     private final ConversationService conversations;
     private final BankOrchestrator orchestrator;
     private final RunRegistry runRegistry;
+    private final ObjectProvider<TextToSpeechModel> speechModel;
+    private final VoiceProperties voice;
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
 
     public BankChatService(UserDirectory users, ConversationService conversations,
-            BankOrchestrator orchestrator, RunRegistry runRegistry) {
+            BankOrchestrator orchestrator, RunRegistry runRegistry,
+            ObjectProvider<TextToSpeechModel> speechModel, VoiceProperties voice) {
         this.users = users;
         this.conversations = conversations;
         this.orchestrator = orchestrator;
         this.runRegistry = runRegistry;
+        this.speechModel = speechModel;
+        this.voice = voice;
     }
 
     public record StartRunResponse(String conversationId, String runId) {
@@ -86,17 +99,49 @@ public class BankChatService {
         return run.snapshot();
     }
 
+    /** Live answer-token stream for a run (SSE); 404 when the run does not exist. */
+    public Flux<RunRecord.AnswerEvent> answerStream(String runId) {
+        RunRecord run = runRegistry.get(runId);
+        if (run == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Run not found");
+        }
+        return run.answerEvents();
+    }
+
     private void execute(RunRecord run, String message) {
         AgentTrace trace = run.trace();
         try {
-            String answer = orchestrator.run(run.userId(), run.conversationId(), message, trace);
+            String answer = orchestrator.run(run.userId(), run.conversationId(), message, trace,
+                    run::emitAnswerEvent);
             conversations.addAssistantMessage(run.conversationId(), answer);
+            synthesizeSpeech(run.runId(), answer);
             runRegistry.complete(run.runId(), answer);
         }
         catch (Exception ex) {
             log.error("Banking run {} failed", run.runId(), ex);
             trace.event("run_failed", "orchestrator", "Run failed: " + ex.getMessage(), null, null);
             runRegistry.fail(run.runId(), ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
+        }
+    }
+
+    /**
+     * Best-effort text-to-speech for the final answer, stored next to the run so the
+     * UI can play it via /api/runs/{runId}/audio. The text answer is always
+     * delivered, even if voice is disabled or synthesis fails.
+     */
+    private void synthesizeSpeech(String runId, String answer) {
+        TextToSpeechModel model = this.speechModel.getIfAvailable();
+        if (model == null || !StringUtils.hasText(answer) || answer.length() > this.voice.maxTtsChars()) {
+            return;
+        }
+        try {
+            byte[] audio = model.call(answer);
+            Path dir = Path.of(this.voice.audioDir());
+            Files.createDirectories(dir);
+            Files.write(dir.resolve(runId + ".mp3"), audio);
+        }
+        catch (Exception ex) {
+            log.warn("Speech synthesis failed for run {}; the text answer is unaffected", runId, ex);
         }
     }
 
