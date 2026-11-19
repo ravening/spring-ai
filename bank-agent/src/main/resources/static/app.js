@@ -9,6 +9,7 @@ const state = {
     documents: [],
     runPolls: new Map(),
     activeByConv: new Map(),
+    voiceBubbleByRun: new Map(),
     sending: false
 };
 
@@ -37,8 +38,13 @@ const els = {
     composer: document.getElementById("composer"),
     chatInput: document.getElementById("chat-input"),
     sendButton: document.getElementById("send-button"),
+    micButton: document.getElementById("mic-button"),
     toast: document.getElementById("toast")
 };
+
+let mediaRecorder = null;
+let recordedChunks = [];
+let recording = false;
 
 async function api(path, options = {}) {
     const response = await fetch(path, options);
@@ -246,6 +252,7 @@ function updateWorkingBadge() {
     const active = state.conversationId && state.activeByConv.has(state.conversationId);
     els.workingBadge.classList.toggle("hidden", !active);
     els.sendButton.disabled = Boolean(active);
+    els.micButton.disabled = Boolean(active);
     els.chatInput.placeholder = active
         ? "Waiting for the answer to your previous question…"
         : "Ask about your balance, spending, income, last transactions, card limits, bank fees… or upload a file first";
@@ -286,6 +293,71 @@ async function sendMessage(event) {
     }
 }
 
+function playRunAudio(runId) {
+    const audio = new Audio("/api/runs/" + encodeURIComponent(runId) + "/audio");
+    audio.play().catch(() => { /* no audio for this run (voice disabled or TTS failed) */ });
+}
+
+async function toggleMic() {
+    if (recording) {
+        mediaRecorder.stop();
+        return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast("Voice recording needs a secure context (HTTPS or localhost) and a browser with getUserMedia.", true);
+        return;
+    }
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = (ev) => { if (ev.data && ev.data.size) recordedChunks.push(ev.data); };
+        mediaRecorder.onstop = () => {
+            stream.getTracks().forEach((t) => t.stop());
+            recording = false;
+            els.micButton.classList.remove("recording");
+            els.micButton.textContent = "🎙";
+            const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+            sendVoice(blob);
+        };
+        mediaRecorder.start();
+        recording = true;
+        els.micButton.classList.add("recording");
+        els.micButton.textContent = "⏹";
+    } catch (ex) {
+        toast("Microphone access denied: " + ex.message, true);
+    }
+}
+
+async function sendVoice(blob) {
+    if (!state.userId || state.sending) return;
+    if (state.conversationId && state.activeByConv.has(state.conversationId)) {
+        toast("This conversation is still working on the previous question.", true);
+        return;
+    }
+    state.sending = true;
+    try {
+        const form = new FormData();
+        form.append("audio", blob, "voice-message.webm");
+        form.append("userId", state.userId);
+        if (state.conversationId) form.append("conversationId", state.conversationId);
+        const started = await api("/api/chat/voice", { method: "POST", body: form });
+        if (started.conversationId !== state.conversationId) {
+            state.conversationId = started.conversationId;
+            localStorage.setItem(CONV_KEY, started.conversationId);
+        }
+        const bubble = appendMessage("user", "🎙 transcribing…");
+        state.voiceBubbleByRun.set(started.runId, bubble);
+        startRunPoll(started.runId);
+        await loadConversations();
+    } catch (ex) {
+        toast(ex.message, true);
+        appendMessage("assistant", "⚠️ " + ex.message);
+    } finally {
+        state.sending = false;
+    }
+}
+
 function startRunPoll(runId) {
     if (state.runPolls.has(runId)) return;
     showTrace();
@@ -296,7 +368,18 @@ function startRunPoll(runId) {
             renderTrace(run);
             if (run.status === "COMPLETED") {
                 stopRunPoll(runId);
-                appendMessage("assistant", run.answer || "(empty answer)");
+                const bubble = appendMessage("assistant", run.answer || "(empty answer)");
+                const play = el("button", "ghost play-audio", "🔊");
+                play.type = "button";
+                play.title = "Play the answer";
+                play.addEventListener("click", () => playRunAudio(runId));
+                bubble.appendChild(play);
+                const voiceBubble = state.voiceBubbleByRun.get(runId);
+                if (voiceBubble && run.message) {
+                    voiceBubble.querySelector(".message-body").textContent = "🎙 " + run.message;
+                }
+                state.voiceBubbleByRun.delete(runId);
+                playRunAudio(runId);
                 hideTraceSoon();
                 await loadConversations();
             } else if (run.status === "FAILED") {
@@ -462,6 +545,7 @@ els.userSelect.addEventListener("change", async () => {
 
 els.newConversation.addEventListener("click", newConversation);
 els.composer.addEventListener("submit", sendMessage);
+els.micButton.addEventListener("click", toggleMic);
 els.refreshMcp.addEventListener("click", async () => { await loadMcpStatus(); toast("MCP status refreshed"); });
 els.toolsButton.addEventListener("click", showTools);
 els.toolsClose.addEventListener("click", () => els.toolsModal.classList.add("hidden"));

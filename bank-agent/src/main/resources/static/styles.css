@@ -206,6 +206,9 @@ button.block { width: 100%; }
 }
 .composer textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .composer-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; gap: 10px; }
+.composer-buttons { display: flex; align-items: center; gap: 8px; }
+#mic-button.recording { background: var(--error); border-color: var(--error); color: #fff; }
+.play-audio { margin-left: 8px; vertical-align: middle; }
 
 .modal {
     position: fixed;

@@ -70,7 +70,11 @@
                       placeholder="Ask about your balance, spending, income, last transactions, card limits, bank fees… or upload a file first"></textarea>
             <div class="composer-actions">
                 <span class="hint">Answers use your conversation history, uploaded files and live MCP bank data.</span>
-                <button id="send-button" class="primary" type="submit">Send</button>
+                <div class="composer-buttons">
+                    <button id="mic-button" class="ghost" type="button"
+                            title="Record a voice message (needs BANK_VOICE_ENABLED on the server)">🎙</button>
+                    <button id="send-button" class="primary" type="submit">Send</button>
+                </div>
             </div>
         </form>
     </main>

@@ -71,7 +71,7 @@ public final class RunRecord {
     }
 
     public RunStatus snapshot() {
-        return new RunStatus(runId, conversationId, userId, status.name(), answer, error,
+        return new RunStatus(runId, conversationId, userId, status.name(), message, answer, error,
                 createdAt, finishedAt, trace.events(), trace.toolCalls());
     }
 
@@ -80,6 +80,7 @@ public final class RunRecord {
             String conversationId,
             String userId,
             String status,
+            String message,
             String answer,
             String error,
             Instant createdAt,

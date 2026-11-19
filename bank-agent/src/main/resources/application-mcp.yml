@@ -17,6 +17,8 @@ spring:
     model:
       chat: none
       embedding: none
+      audio-speech: none
+      audio-transcription: none
     openai:
       api-key: not-used-by-the-mcp-server
     mcp:
