@@ -12,7 +12,7 @@ import {
   isOnDeviceSttAvailable, transcribeOnDevice, AudioCapture, isTtsAvailable,
 } from '@/lib/speech';
 import {
-  pickDocument, pickImage, validateAttachment, type PickedAsset,
+  pickDocument, validateAttachment, type PickedAsset,
 } from '@/lib/attachments';
 import { appStorage } from '@/lib/storage';
 import type {
@@ -44,7 +44,7 @@ export default function ChatScreen() {
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [voice, setVoice] = useState<VoiceStatus | null>(null);
   const [speaking, setSpeaking] = useState(false);
-  const [serverAudioUrl, setServerAudioUrl] = useState<string | null>(null);
+  const [serverAudioUri, setServerAudioUri] = useState<string | null>(null);
   const [sheet, setSheet] = useState<'attachments' | 'documents' | null>(null);
   const [scope, setScope] = useState<'chat' | 'user'>('chat');
   const [uploading, setUploading] = useState(false);
@@ -56,6 +56,7 @@ export default function ChatScreen() {
   const focusedRef = useRef(focused);
   const runIdRef = useRef<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const polledRunRef = useRef<string | null>(null);
   const streamAbort = useRef<AbortController | null>(null);
   const audioCapture = useRef<AudioCapture | null>(null);
   const sendingRef = useRef(false);
@@ -63,57 +64,18 @@ export default function ChatScreen() {
   useEffect(() => { focusedRef.current = focused; }, [focused]);
   useEffect(() => { runIdRef.current = runId; }, [runId]);
 
-  const loadConversation = useCallback(async () => {
-    if (!id || !userId) return;
-    setLoading(true);
+  const loadServerAudio = useCallback(async (nextRunId: string) => {
     try {
-      const detail = await api.getConversation(id, userId);
-      setItems(toChatItems(detail));
-      setDocuments(detail.documents);
-      await appStorage.setConversation(userId, detail);
-      if (detail.active && detail.activeRunId) {
-        setRunId(detail.activeRunId);
-        setItems((current) => [
-          ...current,
-          { id: `${detail.activeRunId}-assistant`, role: 'assistant', content: '', createdAt: null, pending: true, runId: detail.activeRunId! },
-        ]);
-      }
+      setServerAudioUri(await api.downloadRunAudio(nextRunId));
     } catch {
-      const cached = await appStorage.getConversation(userId, id);
-      if (cached) {
-        setItems(toChatItems(cached));
-        setDocuments(cached.documents);
-      }
-      showToast('Could not load this conversation from the server');
-    } finally {
-      setLoading(false);
-    }
-  }, [id, userId, showToast]);
-
-  useEffect(() => {
-    void loadConversation();
-    void api.voiceStatus().then(setVoice).catch(() => setVoice({ stt: false, tts: false }));
-    return () => {
-      if (pollTimer.current) clearInterval(pollTimer.current);
-      streamAbort.current?.abort();
-      void Speech.stop();
-    };
-  }, [loadConversation]);
-
-  const checkServerAudio = useCallback(async (nextRunId: string) => {
-    try {
-      const controller = new AbortController();
-      const response = await api.authenticatedFetch(api.getRunAudioUrl(nextRunId), { signal: controller.signal });
-      controller.abort();
-      setServerAudioUrl(response.ok ? api.getRunAudioUrl(nextRunId) : null);
-    } catch {
-      setServerAudioUrl(null);
+      setServerAudioUri(null);
     }
   }, []);
 
   const finalizeRun = useCallback(async (finalStatus: RunStatus) => {
     setRunId(null);
     runIdRef.current = null;
+    polledRunRef.current = null;
     setItems((current) =>
       current.map((item) =>
         item.runId === finalStatus.runId
@@ -152,12 +114,13 @@ export default function ChatScreen() {
       if (settings.autoSpeak && (await isTtsAvailable())) {
         await Speech.speak(stripMarkdown(finalStatus.answer), { language: 'en-US' });
       }
-      await checkServerAudio(finalStatus.runId);
+      await loadServerAudio(finalStatus.runId);
     }
-  }, [refreshConversations, id, userId, settings.autoSpeak, checkServerAudio]);
+  }, [refreshConversations, id, userId, settings.autoSpeak, loadServerAudio]);
 
   const startPolling = useCallback((nextRunId: string) => {
     if (pollTimer.current) clearInterval(pollTimer.current);
+    polledRunRef.current = nextRunId;
     const tick = async () => {
       try {
         const current = await api.getRunStatus(nextRunId);
@@ -210,6 +173,52 @@ export default function ChatScreen() {
     startPolling(startedRunId);
     startStreaming(startedRunId);
   }, [startPolling, startStreaming]);
+
+  const loadConversation = useCallback(async () => {
+    if (!id || !userId) return;
+    setLoading(true);
+    try {
+      const detail = await api.getConversation(id, userId);
+      setItems(toChatItems(detail));
+      setDocuments(detail.documents);
+      await appStorage.setConversation(userId, detail);
+      if (detail.active && detail.activeRunId) {
+        setRunId(detail.activeRunId);
+        setItems((current) => [
+          ...current,
+          { id: `${detail.activeRunId}-assistant`, role: 'assistant', content: '', createdAt: null, pending: true, runId: detail.activeRunId! },
+        ]);
+      }
+    } catch {
+      const cached = await appStorage.getConversation(userId, id);
+      if (cached) {
+        setItems(toChatItems(cached));
+        setDocuments(cached.documents);
+      }
+      showToast('Could not load this conversation from the server');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, userId, showToast]);
+
+  useEffect(() => {
+    void loadConversation();
+    void api.voiceStatus().then(setVoice).catch(() => setVoice({ stt: false, tts: false }));
+    return () => {
+      if (pollTimer.current) clearInterval(pollTimer.current);
+      streamAbort.current?.abort();
+      void Speech.stop();
+    };
+  }, [loadConversation]);
+
+  // Resume live status when opening a conversation that is already processing on
+  // the server (attachStartedRun already polled runs it started itself).
+  useEffect(() => {
+    if (runId && polledRunRef.current !== runId) {
+      startPolling(runId);
+      startStreaming(runId);
+    }
+  }, [runId, startPolling, startStreaming]);
 
   const send = useCallback(async (text: string) => {
     const message = text.trim();
@@ -388,14 +397,14 @@ export default function ChatScreen() {
   }, [userId, id, showToast]);
 
   const playServerAudio = useCallback(async () => {
-    if (!serverAudioUrl) return;
+    if (!serverAudioUri) return;
     try {
-      const player = createAudioPlayer(serverAudioUrl);
+      const player = createAudioPlayer(serverAudioUri);
       player.play();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Could not play server audio');
     }
-  }, [serverAudioUrl, showToast]);
+  }, [serverAudioUri, showToast]);
 
   const renderItem = useCallback(
     ({ item }: { item: ChatItem }) => (
@@ -491,7 +500,7 @@ export default function ChatScreen() {
         </TouchableOpacity>
       </View>
 
-      {serverAudioUrl && (
+      {serverAudioUri && (
         <TouchableOpacity style={styles.audioLink} onPress={() => void playServerAudio()}>
           <Text style={styles.audioLinkText}>▶ Play server-generated audio</Text>
         </TouchableOpacity>
@@ -521,12 +530,6 @@ export default function ChatScreen() {
                     <Text style={styles.scopeText}>All my chats</Text>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.modalAction} onPress={() => void pickImage('library').then((asset) => asset && handleAttach(asset))}>
-                  <Text style={styles.modalActionText}>Photo library</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.modalAction} onPress={() => void pickImage('camera').then((asset) => asset && handleAttach(asset))}>
-                  <Text style={styles.modalActionText}>Camera</Text>
-                </TouchableOpacity>
                 <TouchableOpacity style={styles.modalAction} onPress={() => void pickDocument().then((asset) => asset && handleAttach(asset))}>
                   <Text style={styles.modalActionText}>Document / file</Text>
                 </TouchableOpacity>

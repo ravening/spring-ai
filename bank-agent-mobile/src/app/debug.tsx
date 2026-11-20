@@ -58,7 +58,16 @@ export default function DebugScreen() {
           {tools.localTools.length === 0 && <Text style={styles.value}>none</Text>}
           {tools.localTools.map((tool) => <Text key={tool} style={styles.value}>• {tool}</Text>)}
           <Text style={styles.section}>MCP server</Text>
-          <Text style={styles.value}>{JSON.stringify(tools.mcp)}</Text>
+          <Text style={styles.value}>state: {tools.mcp.state ?? 'unknown'}</Text>
+          {typeof tools.mcp.endpoint === 'string' && (
+            <Text style={styles.value}>endpoint: {tools.mcp.endpoint}</Text>
+          )}
+          <Text style={styles.value}>
+            tools: {Array.isArray(tools.mcp.tools) ? tools.mcp.tools.length : 0}
+          </Text>
+          {typeof tools.mcp.error === 'string' && tools.mcp.error && (
+            <Text style={styles.bad}>{tools.mcp.error}</Text>
+          )}
         </>
       )}
 

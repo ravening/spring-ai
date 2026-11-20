@@ -53,7 +53,8 @@ export interface DocumentInfo {
   uploadedAtEpochSeconds: number;
 }
 
-export interface ConversationDetail extends ConversationSummary {
+/** The detail endpoint omits updatedAt/messageCount; only the list summary has them. */
+export interface ConversationDetail extends Omit<ConversationSummary, 'updatedAt' | 'messageCount'> {
   messages: ConversationMessage[];
   documents: DocumentInfo[];
 }
@@ -104,12 +105,19 @@ export interface VoiceStatus {
   tts: boolean;
 }
 
+export interface McpToolInfo {
+  name: string;
+  description: string;
+}
+
+/** Mirrors bank-agent's McpStatus record: {state, endpoint, tools[], error}. */
 export interface ToolStatus {
   localTools: string[];
   mcp: {
-    connected?: boolean;
-    tools?: number;
-    message?: string;
+    state?: string;
+    endpoint?: string;
+    tools?: McpToolInfo[];
+    error?: string | null;
     [key: string]: unknown;
   };
 }
@@ -146,13 +154,14 @@ export interface UnreadCount {
   count: number;
 }
 
+/** Backend rows use BigDecimal, which Jackson serializes as JSON numbers. */
 export interface AccountRow {
   accountId: string;
   userId: string;
   name: string;
   type: string;
   currency: string;
-  balance: string;
+  balance: number;
   iban: string;
 }
 
@@ -160,12 +169,12 @@ export interface TransferResultDto {
   txnId: string;
   fromAccountId: string;
   toAccountId: string;
-  amount: string;
+  amount: number;
   currency: string;
-  senderOldBalance: string;
-  senderNewBalance: string;
-  recipientOldBalance: string;
-  recipientNewBalance: string;
+  senderOldBalance: number;
+  senderNewBalance: number;
+  recipientOldBalance: number;
+  recipientNewBalance: number;
   duplicate: boolean;
 }
 
@@ -175,13 +184,13 @@ export interface TransferRow {
   fromAccountId: string;
   toUserId: string;
   toAccountId: string;
-  amount: string;
+  amount: number;
   currency: string;
   note: string | null;
-  fromOldBalance: string;
-  fromNewBalance: string;
-  toOldBalance: string;
-  toNewBalance: string;
+  fromOldBalance: number;
+  fromNewBalance: number;
+  toOldBalance: number;
+  toNewBalance: number;
   createdAt: number;
 }
 

@@ -12,7 +12,6 @@
       "expo-secure-store",
       "expo-audio",
       "expo-local-authentication",
-      "expo-image-picker",
       "expo-speech-recognition",
       [
         "expo-notifications",
@@ -32,7 +31,6 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "The microphone is used for voice input to the banking assistant.",
         "NSSpeechRecognitionUsageDescription": "Speech recognition turns your voice into chat messages.",
-        "NSPhotoLibraryUsageDescription": "Attach photos or documents to your chat.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
@@ -43,7 +41,6 @@
       "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.POST_NOTIFICATIONS"
       ],

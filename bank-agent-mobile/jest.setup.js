@@ -16,10 +16,3 @@ jest.mock('@react-native-async-storage/async-storage', () => {
 });
 
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: async () => ({ canceled: true }) }));
-jest.mock('expo-image-picker', () => ({
-  requestCameraPermissionsAsync: async () => ({ granted: false }),
-  requestMediaLibraryPermissionsAsync: async () => ({ granted: false }),
-  launchCameraAsync: async () => ({ canceled: true }),
-  launchImageLibraryAsync: async () => ({ canceled: true }),
-}));
-jest.mock('expo-image-manipulator', () => ({ SaveFormat: { JPEG: 1 }, manipulateAsync: async () => ({ uri: 'x.jpg' }) }));
