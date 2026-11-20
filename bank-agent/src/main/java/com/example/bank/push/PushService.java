@@ -5,16 +5,15 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * Sends a push notification when an agent run completes. Registrations are kept in
- * memory for the PoC; a production deployment should persist them per user/device.
+ * Best-effort Expo push "wake-up" signal. The authoritative record lives in the
+ * notifications table; push carries only ids + a deep link, never financial detail.
+ * A push failure is logged and ignored — it never rolls back a transfer or job run.
  */
 @Service
 public class PushService {
@@ -22,61 +21,69 @@ public class PushService {
     private static final Logger log = LoggerFactory.getLogger(PushService.class);
 
     private final PushProperties properties;
+    private final PushDeviceStore devices;
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-    private final Map<String, Registration> registrations = new ConcurrentHashMap<>();
 
-    public record Registration(String token, String platform) {
-    }
-
-    public PushService(PushProperties properties) {
+    public PushService(PushProperties properties, PushDeviceStore devices) {
         this.properties = properties;
+        this.devices = devices;
     }
 
     public void register(String userId, String token, String platform) {
-        registrations.put(userId, new Registration(token, platform == null ? "unknown" : platform));
+        devices.register(userId, token, platform, System.currentTimeMillis());
+    }
+
+    public void unregisterToken(String userId, String token) {
+        devices.unregisterToken(userId, token);
     }
 
     public void unregister(String userId) {
-        registrations.remove(userId);
+        devices.unregisterAll(userId);
     }
 
-    public Registration registration(String userId) {
-        return registrations.get(userId);
+    public long registrationCount() {
+        return devices.count();
     }
 
-    public int registrationCount() {
-        return registrations.size();
+    public long registrationCount(String userId) {
+        return devices.countForUser(userId);
     }
 
-    /** Best-effort: a push failure never affects the chat answer. */
-    public void notifyRunCompleted(String userId, String runId, String conversationId, String title, String body) {
+    /**
+     * Sends a minimal wake-up to every device of a user. Expo receipts are consumed
+     * opportunistically: stale DeviceNotRegistered tokens are removed from the table.
+     */
+    public void sendWakeUp(String userId, long notificationId, String conversationId, String url) {
         if (!properties.enabled()) {
             return;
         }
-        Registration registration = registrations.get(userId);
-        if (registration == null || registration.token().isBlank()) {
-            return;
-        }
-        String payload = "{\"to\":" + quote(registration.token())
-                + ",\"title\":" + quote(title)
-                + ",\"body\":" + quote(body)
-                + ",\"sound\":\"default\""
-                + ",\"data\":" + "{\"runId\":" + quote(runId)
-                + ",\"conversationId\":" + quote(conversationId)
-                + ",\"url\":\"/conversations/" + escape(conversationId) + "\"}}";
-        try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(properties.url()))
-                    .timeout(Duration.ofSeconds(5))
-                    .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(payload))
-                    .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() >= 300) {
-                log.warn("Push delivery failed with HTTP {}", response.statusCode());
+        for (String token : devices.tokensFor(userId)) {
+            String payload = "{\"to\":" + quote(token)
+                    + ",\"title\":\"Bank Agent\""
+                    + ",\"body\":\"You have a new notification\""
+                    + ",\"sound\":\"default\""
+                    + ",\"data\":{\"notificationId\":" + notificationId
+                    + ",\"conversationId\":" + quote(conversationId)
+                    + ",\"url\":" + quote(url) + "}}";
+            try {
+                HttpRequest request = HttpRequest.newBuilder(URI.create(properties.url()))
+                        .timeout(Duration.ofSeconds(5))
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(payload))
+                        .build();
+                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                String body = response.body() == null ? "" : response.body();
+                if (response.statusCode() >= 300) {
+                    log.warn("Push delivery failed with HTTP {}", response.statusCode());
+                }
+                if (body.contains("DeviceNotRegistered")) {
+                    devices.removeToken(token);
+                    log.info("Removed stale push device token for user {}", userId);
+                }
+            } catch (Exception ex) {
+                log.warn("Push delivery failed: {}", ex.getMessage());
             }
-        } catch (Exception ex) {
-            log.warn("Push delivery failed: {}", ex.getMessage());
         }
     }
 

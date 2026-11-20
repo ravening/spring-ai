@@ -49,8 +49,29 @@ spring:
 
 bank:
   auth:
+    # Demo mode leaves auth off (userId is client-supplied). Any deployment with more
+    # than one user MUST set BANK_AUTH_ENABLED=true (and BANK_AUTH_TOKENS) so the
+    # verified userId from the bearer token is used for every ownership check.
     enabled: ${BANK_AUTH_ENABLED:false}
     tokens: ${BANK_AUTH_TOKENS:}
+  # Scheduled jobs, real transfers and the notification inbox. See
+  # tasks/bank-agent-notifications-plan.md. All behaviour is additive.
+  jobs:
+    enabled: ${BANK_JOBS_ENABLED:true}
+    poll-interval: ${BANK_JOBS_POLL_INTERVAL:5s}
+    worker-threads: ${BANK_JOBS_WORKER_THREADS:4}
+    max-active-per-user: ${BANK_JOBS_MAX_ACTIVE_PER_USER:50}
+    max-transfer-amount: ${BANK_JOBS_MAX_TRANSFER_AMOUNT:100}
+    default-timezone: ${BANK_JOBS_DEFAULT_TIMEZONE:UTC}
+    max-catchup: ${BANK_JOBS_MAX_CATCHUP:100}
+    lease-seconds: ${BANK_JOBS_LEASE_SECONDS:60}
+  notifications:
+    page-size: ${BANK_NOTIFICATIONS_PAGE_SIZE:100}
+  rate-limit:
+    enabled: ${BANK_RATE_LIMIT_ENABLED:true}
+    jobs-per-minute: ${BANK_RATE_LIMIT_JOBS_PER_MINUTE:20}
+    transfers-per-minute: ${BANK_RATE_LIMIT_TRANSFERS_PER_MINUTE:30}
+    registrations-per-minute: ${BANK_RATE_LIMIT_REGISTRATIONS_PER_MINUTE:20}
   push:
     enabled: ${BANK_PUSH_ENABLED:false}
     url: ${BANK_PUSH_URL:https://exp.host/--/api/v2/push/send}

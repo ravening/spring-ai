@@ -23,6 +23,8 @@
         <span id="mcp-badge" class="badge badge-muted">MCP: checking…</span>
         <button id="refresh-mcp" class="ghost" type="button">Refresh MCP</button>
         <button id="tools-button" class="ghost" type="button">Tools</button>
+        <button id="notifications-button" class="ghost" type="button"
+                title="Notification inbox">🔔 <span id="notification-badge"></span></button>
     </div>
 </header>
 
@@ -87,6 +89,19 @@
             <button id="tools-close" class="ghost" type="button">Close</button>
         </div>
         <div id="tools-content"></div>
+    </div>
+</div>
+
+<div id="notifications-modal" class="modal hidden">
+    <div class="modal-card">
+        <div class="modal-head">
+            <h2>Notifications</h2>
+            <div>
+                <button id="notifications-mark-all" class="ghost" type="button">Mark all read</button>
+                <button id="notifications-close" class="ghost" type="button">Close</button>
+            </div>
+        </div>
+        <div id="notifications-content"></div>
     </div>
 </div>
 

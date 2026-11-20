@@ -2,6 +2,7 @@ package com.example.bank.tools;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import com.example.bank.core.TracingToolCallback;
 
@@ -14,11 +15,15 @@ public class LocalToolCatalog {
 
     private static final String KNOWLEDGE_TOOL = "knowledge_search";
 
+    /** Tools that need the current conversation/user scope injected from the tool context. */
+    private static final Set<String> CONTEXT_SCOPED = Set.of(
+            KNOWLEDGE_TOOL, "schedule_job", "list_jobs", "cancel_job", "job_details", "transfer_money");
+
     private final List<ToolCallback> callbacks;
 
-    public LocalToolCatalog(LocalTools localTools) {
+    public LocalToolCatalog(LocalTools localTools, ScheduledJobTools scheduledJobTools, TransferTools transferTools) {
         this.callbacks = Arrays.stream(MethodToolCallbackProvider.builder()
-                        .toolObjects(localTools)
+                        .toolObjects(localTools, scheduledJobTools, transferTools)
                         .build()
                         .getToolCallbacks())
                 .map(LocalToolCatalog::decorate)
@@ -27,9 +32,9 @@ public class LocalToolCatalog {
 
     private static ToolCallback decorate(ToolCallback callback) {
         ToolCallback decorated = callback;
-        if (KNOWLEDGE_TOOL.equals(callback.getToolDefinition().name())) {
-            // knowledge_search needs the current conversation/user scope even when the
-            // model omits those arguments, so inject them from the tool context first.
+        if (CONTEXT_SCOPED.contains(callback.getToolDefinition().name())) {
+            // These tools stay scoped to the current conversation/user even when the
+            // model omits those arguments: inject them from the tool context first.
             decorated = new ContextInjectingToolCallback(decorated, "conversationId", "userId");
         }
         return new TracingToolCallback(decorated, "local");

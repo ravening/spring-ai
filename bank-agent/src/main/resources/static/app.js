@@ -12,7 +12,9 @@ const state = {
     voiceBubbleByRun: new Map(),
     voice: { stt: false, tts: false },
     voiceMode: "server",
-    sending: false
+    sending: false,
+    notifications: [],
+    notificationCursor: 0
 };
 
 const els = {
@@ -41,6 +43,12 @@ const els = {
     chatInput: document.getElementById("chat-input"),
     sendButton: document.getElementById("send-button"),
     micButton: document.getElementById("mic-button"),
+    notificationsButton: document.getElementById("notifications-button"),
+    notificationBadge: document.getElementById("notification-badge"),
+    notificationsModal: document.getElementById("notifications-modal"),
+    notificationsContent: document.getElementById("notifications-content"),
+    notificationsClose: document.getElementById("notifications-close"),
+    notificationsMarkAll: document.getElementById("notifications-mark-all"),
     toast: document.getElementById("toast")
 };
 
@@ -781,11 +789,88 @@ async function showTools() {
     }
 }
 
+async function loadNotifications(silent = true) {
+    if (!state.userId) return;
+    try {
+        const page = await api("/api/notifications?userId=" + encodeURIComponent(state.userId) +
+            "&sinceId=" + state.notificationCursor + "&limit=100");
+        for (const item of page.items) {
+            if (!state.notifications.some((n) => n.id === item.id)) state.notifications.push(item);
+        }
+        state.notifications.sort((a, b) => b.id - a.id);
+        for (const item of page.items) state.notificationCursor = Math.max(state.notificationCursor, item.id);
+        els.notificationBadge.textContent = page.unreadCount > 0 ? String(page.unreadCount) : "";
+        renderNotifications();
+    } catch (ex) {
+        if (!silent) toast(ex.message, true);
+    }
+}
+
+function notificationDetail(detail) {
+    if (!detail) return "";
+    try {
+        const value = JSON.parse(detail);
+        const parts = [];
+        if (value.amount && value.currency) parts.push(value.amount + " " + value.currency);
+        if (value.oldBalance && value.newBalance) parts.push(value.oldBalance + " → " + value.newBalance);
+        if (value.txnId) parts.push(value.txnId);
+        if (value.text) parts.push(String(value.text).slice(0, 120));
+        return parts.join(" · ");
+    } catch { return ""; }
+}
+
+function renderNotifications() {
+    els.notificationsContent.innerHTML = "";
+    if (!state.notifications.length) {
+        els.notificationsContent.appendChild(el("p", "hint", "No notifications yet."));
+        return;
+    }
+    for (const item of state.notifications) {
+        const row = el("div", "notification-row" + (item.read ? "" : " unread"));
+        const head = el("div", "notification-head");
+        if (!item.read) head.appendChild(el("span", "notification-dot", "●"));
+        head.appendChild(el("strong", "", item.title));
+        row.appendChild(head);
+        row.appendChild(el("p", "", item.body));
+        const detail = notificationDetail(item.detail);
+        if (detail) row.appendChild(el("p", "hint", detail));
+        if (!item.read) {
+            const markRead = el("button", "ghost", "Mark read");
+            markRead.type = "button";
+            markRead.addEventListener("click", async () => {
+                try {
+                    await api("/api/notifications/" + item.id + "/read?userId=" +
+                        encodeURIComponent(state.userId), { method: "POST" });
+                    item.read = true;
+                    await loadNotifications();
+                } catch (ex) { toast(ex.message, true); }
+            });
+            row.appendChild(markRead);
+        }
+        const open = el("button", "ghost", "Open chat");
+        open.type = "button";
+        open.addEventListener("click", async () => {
+            if (!item.read) {
+                await api("/api/notifications/" + item.id + "/read?userId=" +
+                    encodeURIComponent(state.userId), { method: "POST" }).catch(() => null);
+            }
+            els.notificationsModal.classList.add("hidden");
+            await openConversation(item.conversationId);
+            await loadNotifications();
+        });
+        row.appendChild(open);
+        els.notificationsContent.appendChild(row);
+    }
+}
+
 els.userSelect.addEventListener("change", async () => {
     state.userId = els.userSelect.value;
     localStorage.setItem(USER_KEY, state.userId);
     state.conversationId = "";
     localStorage.removeItem(CONV_KEY);
+    state.notifications = [];
+    state.notificationCursor = 0;
+    els.notificationBadge.textContent = "";
     els.messages.innerHTML = "";
     hideTrace();
     await loadConversations();
@@ -805,6 +890,21 @@ els.refreshMcp.addEventListener("click", async () => { await loadMcpStatus(); to
 els.toolsButton.addEventListener("click", showTools);
 els.toolsClose.addEventListener("click", () => els.toolsModal.classList.add("hidden"));
 els.toolsModal.addEventListener("click", (ev) => { if (ev.target === els.toolsModal) els.toolsModal.classList.add("hidden"); });
+els.notificationsButton.addEventListener("click", () => {
+    void loadNotifications();
+    els.notificationsModal.classList.remove("hidden");
+});
+els.notificationsClose.addEventListener("click", () => els.notificationsModal.classList.add("hidden"));
+els.notificationsModal.addEventListener("click", (ev) => {
+    if (ev.target === els.notificationsModal) els.notificationsModal.classList.add("hidden");
+});
+els.notificationsMarkAll.addEventListener("click", async () => {
+    try {
+        await api("/api/notifications/read-all?userId=" + encodeURIComponent(state.userId), { method: "POST" });
+        state.notifications.forEach((item) => { item.read = true; });
+        await loadNotifications();
+    } catch (ex) { toast(ex.message, true); }
+});
 els.traceToggle.addEventListener("click", () => {
     const hidden = els.traceEvents.classList.toggle("hidden");
     els.traceTools.classList.toggle("hidden", hidden);
@@ -829,4 +929,6 @@ els.fileInput.addEventListener("change", () => {
         renderDocuments();
     }
     setInterval(() => loadConversations(true), 3000);
+    void loadNotifications();
+    setInterval(() => loadNotifications(true), 10_000);
 })();

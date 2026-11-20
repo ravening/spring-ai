@@ -16,7 +16,8 @@ import com.example.bank.chat.ConversationService;
 import com.example.bank.core.AgentTrace;
 import com.example.bank.core.ConversationId;
 import com.example.bank.core.PromptSafety;
-import com.example.bank.push.PushService;
+import com.example.bank.notify.NotificationDtos.NotificationEvent;
+import com.example.bank.notify.NotificationService;
 import com.example.bank.users.BankUser;
 import com.example.bank.users.UserDirectory;
 import com.example.bank.voice.VoiceProperties;
@@ -47,20 +48,20 @@ public class BankChatService {
     private final RunRegistry runRegistry;
     private final ObjectProvider<TextToSpeechModel> speechModel;
     private final VoiceProperties voice;
-    private final PushService push;
+    private final NotificationService notifications;
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
 
     public BankChatService(UserDirectory users, ConversationService conversations,
             BankOrchestrator orchestrator, RunRegistry runRegistry,
             ObjectProvider<TextToSpeechModel> speechModel, VoiceProperties voice,
-            PushService push) {
+            NotificationService notifications) {
         this.users = users;
         this.conversations = conversations;
         this.orchestrator = orchestrator;
         this.runRegistry = runRegistry;
         this.speechModel = speechModel;
         this.voice = voice;
-        this.push = push;
+        this.notifications = notifications;
     }
 
     public record StartRunResponse(String conversationId, String runId) {
@@ -123,8 +124,15 @@ public class BankChatService {
             if (summary.length() > 140) {
                 summary = summary.substring(0, 137) + "...";
             }
-            push.notifyRunCompleted(run.userId(), run.runId(), run.conversationId(),
-                    "Answer ready", summary);
+            // The answer is already persisted above, so chatMessage is null — this
+            // emits one notification row without creating a duplicate chat bubble.
+            try {
+                notifications.emit(new NotificationEvent(run.userId(), run.conversationId(),
+                        "answer_ready", "Answer ready", summary, null, null,
+                        "run:" + run.runId(), null));
+            } catch (Exception ex) {
+                log.warn("Could not emit answer_ready notification for run {}: {}", run.runId(), ex.getMessage());
+            }
             runRegistry.complete(run.runId(), answer);
         }
         catch (Exception ex) {

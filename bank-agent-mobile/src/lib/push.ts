@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { api } from './api';
 import { requestNotificationPermission } from './notifications';
+import { appStorage } from './storage';
 
 export interface PushRegistrationResult {
   token: string | null;
@@ -16,6 +17,11 @@ export interface PushRegistrationResult {
  */
 export async function registerDeviceForPush(userId: string): Promise<PushRegistrationResult> {
   try {
+    // The single global preference gates registration as well as polling/badge.
+    const settings = await appStorage.getSettings();
+    if (!settings.notificationsEnabled) {
+      return { token: null, error: 'Notifications are disabled' };
+    }
     const granted = await requestNotificationPermission();
     if (!granted) return { token: null, error: 'Notification permission denied' };
 

@@ -80,6 +80,15 @@ export default function SettingsScreen() {
         On-device recognition: {onDevice ? 'available' : 'unavailable in this build – server fallback used'}
       </Text>
 
+      <Text style={styles.section}>Notifications</Text>
+      <SettingRow
+        label="Notifications"
+        description="Poll for new job results and incoming transfers, show the unread badge and popups, and register this device for push"
+        value={settings.notificationsEnabled}
+        onValueChange={(value) => patch({ notificationsEnabled: value })}
+      />
+      <Text style={styles.hint}>Remote push on server: {pushEnabled ? 'enabled' : 'disabled'}</Text>
+
       <Text style={styles.section}>Privacy</Text>
       <SettingRow
         label="Biometric app lock"

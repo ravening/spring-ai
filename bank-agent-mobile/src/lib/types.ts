@@ -123,6 +123,101 @@ export interface AttachmentAsset {
   sizeBytes?: number;
 }
 
+/** Notification inbox (single source of truth on the server). */
+export interface NotificationDto {
+  id: number;
+  userId: string;
+  conversationId: string;
+  type: string;
+  title: string;
+  body: string;
+  detail: string | null;
+  jobId: string | null;
+  read: boolean;
+  createdAt: number;
+}
+
+export interface NotificationPage {
+  unreadCount: number;
+  items: NotificationDto[];
+}
+
+export interface UnreadCount {
+  count: number;
+}
+
+export interface AccountRow {
+  accountId: string;
+  userId: string;
+  name: string;
+  type: string;
+  currency: string;
+  balance: string;
+  iban: string;
+}
+
+export interface TransferResultDto {
+  txnId: string;
+  fromAccountId: string;
+  toAccountId: string;
+  amount: string;
+  currency: string;
+  senderOldBalance: string;
+  senderNewBalance: string;
+  recipientOldBalance: string;
+  recipientNewBalance: string;
+  duplicate: boolean;
+}
+
+export interface TransferRow {
+  id: string;
+  fromUserId: string;
+  fromAccountId: string;
+  toUserId: string;
+  toAccountId: string;
+  amount: string;
+  currency: string;
+  note: string | null;
+  fromOldBalance: string;
+  fromNewBalance: string;
+  toOldBalance: string;
+  toNewBalance: string;
+  createdAt: number;
+}
+
+export interface JobDto {
+  id: string;
+  userId: string;
+  conversationId: string;
+  type: string;
+  payload: string;
+  status: string;
+  runAt: number | null;
+  cron: string | null;
+  intervalMinutes: number | null;
+  timezone: string | null;
+  runCount: number;
+  lastRunAt: number | null;
+  lastResult: string | null;
+  createdAt: number;
+}
+
+export interface JobRunDto {
+  id: string;
+  jobId: string;
+  idempotencyKey: string;
+  scheduledFor: number | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+  status: string;
+  result: string | null;
+}
+
+export interface JobDetails {
+  job: JobDto;
+  runs: JobRunDto[];
+}
+
 /** A message shown in the chat UI. `localId` is stable for animation keys. */
 export interface ChatItem {
   id: string;

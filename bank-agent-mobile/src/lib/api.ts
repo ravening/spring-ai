@@ -7,11 +7,18 @@ import type {
   BankUser,
   ConversationDetail,
   ConversationSummary,
+  AccountRow,
   DocumentInfo,
+  JobDetails,
+  JobDto,
+  NotificationPage,
   PushStatus,
   RunStatus,
   StartRunResponse,
   ToolStatus,
+  TransferResultDto,
+  TransferRow,
+  UnreadCount,
   VoiceStartResponse,
   VoiceStatus,
 } from './types';
@@ -28,7 +35,7 @@ export class ApiError extends Error {
 }
 
 export interface RequestOptions {
-  method?: 'GET' | 'POST' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   /** URL query parameters. Empty/undefined values are dropped. */
   params?: Record<string, string | undefined | null>;
@@ -152,8 +159,75 @@ export class BankApiClient {
     });
   }
 
-  unregisterPushToken(userId: string): Promise<void> {
-    return this.request('/api/notifications/register', { method: 'DELETE', params: { userId } });
+  unregisterPushToken(userId: string, token?: string): Promise<void> {
+    return this.request('/api/notifications/register', { method: 'DELETE', params: { userId, token } });
+  }
+
+  // ---- Notification inbox (polling + notification center) ----
+
+  listNotifications(userId: string, sinceId = 0, limit?: number, unreadOnly = false): Promise<NotificationPage> {
+    return this.request<NotificationPage>('/api/notifications', {
+      params: { userId, sinceId: String(sinceId), limit: limit === undefined ? undefined : String(limit), unreadOnly: String(unreadOnly) },
+    });
+  }
+
+  unreadCount(userId: string): Promise<UnreadCount> {
+    return this.request<UnreadCount>('/api/notifications/unread-count', { params: { userId } });
+  }
+
+  markNotificationRead(id: number, userId: string): Promise<{ id: number; read: boolean }> {
+    return this.request(`/api/notifications/${id}/read`, { method: 'POST', params: { userId } });
+  }
+
+  markAllNotificationsRead(userId: string): Promise<{ updated: number }> {
+    return this.request('/api/notifications/read-all', { method: 'POST', params: { userId } });
+  }
+
+  deleteNotification(id: number, userId: string): Promise<void> {
+    return this.request<void>(`/api/notifications/${id}`, { method: 'DELETE', params: { userId } });
+  }
+
+  // ---- Authoritative accounts / transfers (BankStore) ----
+
+  listAccounts(userId: string): Promise<AccountRow[]> {
+    return this.request<AccountRow[]>('/api/accounts', { params: { userId } });
+  }
+
+  listTransfers(userId: string): Promise<TransferRow[]> {
+    return this.request<TransferRow[]>('/api/transfers', { params: { userId } });
+  }
+
+  createTransfer(
+    userId: string,
+    body: { fromAccountId: string; toUserId: string; toAccountId: string; amount: string; currency?: string; note?: string; idempotencyKey?: string },
+  ): Promise<TransferResultDto> {
+    return this.request<TransferResultDto>('/api/transfers', { method: 'POST', body: { ...body, userId } });
+  }
+
+  // ---- Job CRUD (mirrors the REST contract; jobs are mainly created from chat) ----
+
+  listJobs(userId: string, conversationId?: string, status?: string): Promise<JobDto[]> {
+    return this.request<JobDto[]>('/api/jobs', { params: { userId, conversationId, status } });
+  }
+
+  getJob(id: string, userId: string): Promise<JobDetails> {
+    return this.request<JobDetails>(`/api/jobs/${encodeURIComponent(id)}`, { params: { userId } });
+  }
+
+  createJob(userId: string, body: Record<string, unknown>): Promise<JobDto> {
+    return this.request<JobDto>('/api/jobs', { method: 'POST', body: { ...body, userId } });
+  }
+
+  patchJob(id: string, userId: string, patch: Record<string, unknown>): Promise<JobDto> {
+    return this.request<JobDto>(`/api/jobs/${encodeURIComponent(id)}`, { method: 'PATCH', body: { ...patch, userId } });
+  }
+
+  cancelJob(id: string, userId: string): Promise<void> {
+    return this.request<void>(`/api/jobs/${encodeURIComponent(id)}`, { method: 'DELETE', params: { userId } });
+  }
+
+  runJobNow(id: string, userId: string): Promise<JobDto> {
+    return this.request<JobDto>(`/api/jobs/${encodeURIComponent(id)}/run`, { method: 'POST', params: { userId } });
   }
 
   listUsers(): Promise<BankUser[]> {

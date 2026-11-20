@@ -82,6 +82,25 @@ npm run export:web     # bundle check for web
 LIVE_API=1 npx jest --runInBand --forceExit   # also runs 4 tests against a live backend
 ```
 
+## Notifications & scheduled jobs
+
+The notification center (`src/app/notifications/index.tsx`) polls
+`GET /api/notifications` while the app is foregrounded and the global **Notifications**
+toggle in Settings is on. The server's `notifications` table is the single source of
+truth; the toggle gates polling, device registration, the unread badge and popups, but
+chat messages are always written. The bell icon on the Conversations screen opens the
+center and shows the authoritative unread count; tapping a notification (banner, center,
+or OS push) marks it read and deep-links into the originating chat. Duplicate popups are
+suppressed with a persisted `surfacedIds` set per user.
+
+Remote push is optional and **off by default** on the server (`bank.push.enabled=false`).
+For background delivery: create an EAS project, set `expo.extra.eas.projectId` in
+`app.json`, add your APNs/FCM credentials, build with the committed `eas.json` on a
+physical device (Expo Go cannot receive remote push on SDK 58), and enable
+`BANK_PUSH_ENABLED=true`. Until then, polling alone delivers the full inbox. Scheduled
+jobs and transfers are created from chat (`schedule_job`, `transfer_money`) or via the
+REST endpoints in `tasks/bank-agent-notifications-plan.md`.
+
 ## Security note
 
 By default the backend remains in **demo mode** (customer picker, no auth). This is fine

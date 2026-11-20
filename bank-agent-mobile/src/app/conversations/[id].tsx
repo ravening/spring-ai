@@ -14,7 +14,6 @@ import {
 import {
   pickDocument, pickImage, validateAttachment, type PickedAsset,
 } from '@/lib/attachments';
-import { notifyRunCompleted } from '@/lib/notifications';
 import { appStorage } from '@/lib/storage';
 import type {
   ChatItem, ConversationDetail, DocumentInfo, RunStatus, VoiceStatus,
@@ -148,11 +147,8 @@ export default function ChatScreen() {
     }
 
     if (finalStatus.status === 'COMPLETED' && finalStatus.answer) {
-      if (!focusedRef.current && id) {
-        await notifyRunCompleted(
-          finalStatus.runId, id, 'Answer ready', truncate(stripMarkdown(finalStatus.answer), 120),
-        );
-      }
+      // answer_ready is emitted once by the server (inbox + chat message); no local
+      // notification here, so push and polling cannot create duplicates.
       if (settings.autoSpeak && (await isTtsAvailable())) {
         await Speech.speak(stripMarkdown(finalStatus.answer), { language: 'en-US' });
       }

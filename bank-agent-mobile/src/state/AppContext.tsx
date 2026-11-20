@@ -1,9 +1,16 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { api, ApiError } from '@/lib/api';
 import { appStorage, type AppSettings } from '@/lib/storage';
 import { authTokens, restoreBearerToken, setBearerToken } from '@/lib/auth';
 import { registerDeviceForPush, unregisterDeviceForPush } from '@/lib/push';
-import type { BankUser, ConversationSummary, StartRunResponse } from '@/lib/types';
+import {
+  applyRead, applyReadAll, mergeNotifications, nextBackoff, nextCursor,
+  POLL_INTERVAL_MS, popupCandidate,
+} from '@/lib/notificationSync';
+import type {
+  BankUser, ConversationSummary, NotificationDto, StartRunResponse,
+} from '@/lib/types';
 
 interface AppContextValue {
   users: BankUser[];
@@ -14,6 +21,15 @@ interface AppContextValue {
   connected: boolean;
   authEnabled: boolean;
   toast: string | null;
+  // Notification inbox
+  notifications: NotificationDto[];
+  unreadCount: number;
+  popup: NotificationDto | null;
+  refreshNotifications: () => Promise<void>;
+  markRead: (id: number) => Promise<void>;
+  markAllRead: () => Promise<void>;
+  markNotificationSurfaced: (id: number) => Promise<void>;
+  dismissPopup: (id?: number) => void;
   selectUser: (userId: string) => Promise<void>;
   loginWithToken: (token: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -36,6 +52,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     preferredVoiceMode: 'auto',
     streamingEnabled: true,
     biometricLock: false,
+    notificationsEnabled: true,
     apiBaseUrl: api.baseUrl,
   });
   const [booted, setBooted] = useState(false);
@@ -43,6 +60,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [authEnabled, setAuthEnabled] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Notification inbox state + polling bookkeeping.
+  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [popup, setPopup] = useState<NotificationDto | null>(null);
+  const notificationsRef = useRef<NotificationDto[]>([]);
+  const cursorRef = useRef(0);
+  const surfacedRef = useRef<Set<number>>(new Set());
+  const backoffRef = useRef(POLL_INTERVAL_MS);
+  const settingsRef = useRef(settings);
+
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -76,6 +105,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ]);
       if (!mounted) return;
       setSettings(savedSettings);
+      settingsRef.current = savedSettings;
       api.setBaseUrl(savedSettings.apiBaseUrl || api.baseUrl);
 
       const token = await restoreBearerToken();
@@ -93,12 +123,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } else if (!status.enabled) {
           if (mounted) setUserId(savedUser);
         } else {
-          // Auth enabled but no token: wait for token sign-in.
           resolvedUser = null;
         }
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
-          // The status endpoint itself is protected: auth is definitely enabled.
           if (mounted) {
             setAuthEnabled(true);
             setConnected(true);
@@ -139,9 +167,164 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [hasActiveRun, refreshConversations]);
 
+  // ---- Notification polling (foreground only, gated by the global toggle) ----
+
+  const syncCursorToLatest = useCallback(async (user: string) => {
+    try {
+      const page = await api.listNotifications(user, 0, 100);
+      const latest = nextCursor(0, page.items);
+      cursorRef.current = latest;
+      await appStorage.setNotificationCursor(user, latest).catch(() => undefined);
+      const merged = mergeNotifications(notificationsRef.current, page.items);
+      notificationsRef.current = merged;
+      setNotifications(merged);
+      setUnreadCount(page.unreadCount);
+      await appStorage.setNotifications(user, merged).catch(() => undefined);
+    } catch {
+      // Offline: keep the existing cursor; the next successful poll catches up.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!booted || !userId || !settings.notificationsEnabled) {
+      setPopup(null);
+      setUnreadCount(0);
+      return;
+    }
+    const user = userId;
+    let mounted = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let previousState = AppState.currentState;
+
+    const poll = async () => {
+      if (!mounted) return;
+      const previousCursor = cursorRef.current;
+      try {
+        const page = await api.listNotifications(user, previousCursor, 100);
+        if (!mounted) return;
+        const merged = mergeNotifications(notificationsRef.current, page.items);
+        notificationsRef.current = merged;
+        setNotifications(merged);
+        setUnreadCount(page.unreadCount);
+        await appStorage.setNotifications(user, merged).catch(() => undefined);
+
+        const candidate = popupCandidate(page.items, previousCursor, surfacedRef.current);
+        if (candidate && AppState.currentState === 'active') {
+          setPopup(candidate);
+          surfacedRef.current.add(candidate.id);
+          await appStorage.setSurfacedIds(user, [...surfacedRef.current]).catch(() => undefined);
+        }
+        const next = nextCursor(previousCursor, page.items);
+        if (next !== cursorRef.current) {
+          cursorRef.current = next;
+          await appStorage.setNotificationCursor(user, next).catch(() => undefined);
+        }
+        backoffRef.current = POLL_INTERVAL_MS;
+      } catch {
+        backoffRef.current = nextBackoff(backoffRef.current);
+      } finally {
+        if (!mounted) return;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => void poll(), backoffRef.current);
+      }
+    };
+
+    const start = async () => {
+      const [cached, storedCursor, storedSurfaced] = await Promise.all([
+        appStorage.getNotifications(user),
+        appStorage.getNotificationCursor(user),
+        appStorage.getSurfacedIds(user),
+      ]);
+      if (!mounted) return;
+      cursorRef.current = Math.max(cursorRef.current, storedCursor);
+      surfacedRef.current = new Set(storedSurfaced);
+      notificationsRef.current = cached;
+      setNotifications(cached);
+      // Offline display: derive the badge from the cached read flags until the
+      // first successful poll replaces it with the authoritative server count.
+      setUnreadCount(cached.filter((item) => !item.read).length);
+      backoffRef.current = POLL_INTERVAL_MS;
+      void poll();
+    };
+
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && previousState !== 'active') {
+        if (timer) clearTimeout(timer);
+        void poll();
+      }
+      previousState = state;
+    });
+    void start();
+
+    return () => {
+      mounted = false;
+      if (timer) clearTimeout(timer);
+      subscription.remove();
+    };
+  }, [booted, userId, settings.notificationsEnabled]);
+
+  const refreshNotifications = useCallback(async () => {
+    if (!userId || !settings.notificationsEnabled) return;
+    const previousCursor = cursorRef.current;
+    try {
+      const page = await api.listNotifications(userId, previousCursor, 100);
+      const merged = mergeNotifications(notificationsRef.current, page.items);
+      notificationsRef.current = merged;
+      setNotifications(merged);
+      setUnreadCount(page.unreadCount);
+      await appStorage.setNotifications(userId, merged).catch(() => undefined);
+      const next = nextCursor(previousCursor, page.items);
+      if (next !== cursorRef.current) {
+        cursorRef.current = next;
+        await appStorage.setNotificationCursor(userId, next).catch(() => undefined);
+      }
+    } catch {
+      // Keep cached data when offline.
+    }
+  }, [userId, settings.notificationsEnabled]);
+
+  const markRead = useCallback(async (id: number) => {
+    if (!userId) return;
+    const wasUnread = notificationsRef.current.some((item) => item.id === id && !item.read);
+    const updated = applyRead(notificationsRef.current, id);
+    notificationsRef.current = updated;
+    setNotifications(updated);
+    if (wasUnread) setUnreadCount((current) => Math.max(0, current - 1));
+    surfacedRef.current.add(id);
+    await appStorage.setSurfacedIds(userId, [...surfacedRef.current]).catch(() => undefined);
+    await appStorage.setNotifications(userId, updated).catch(() => undefined);
+    await api.markNotificationRead(id, userId).catch(() => undefined);
+  }, [userId]);
+
+  const markAllRead = useCallback(async () => {
+    if (!userId) return;
+    const updated = applyReadAll(notificationsRef.current);
+    notificationsRef.current = updated;
+    setNotifications(updated);
+    setUnreadCount(0);
+    await appStorage.setNotifications(userId, updated).catch(() => undefined);
+    await api.markAllNotificationsRead(userId).catch(() => undefined);
+  }, [userId]);
+
+  const markNotificationSurfaced = useCallback(async (id: number) => {
+    if (!userId) return;
+    surfacedRef.current.add(id);
+    await appStorage.setSurfacedIds(userId, [...surfacedRef.current]).catch(() => undefined);
+    setPopup((current) => (current?.id === id ? null : current));
+  }, [userId]);
+
+  const dismissPopup = useCallback((id?: number) => {
+    if (id !== undefined && userId) {
+      surfacedRef.current.add(id);
+      void appStorage.setSurfacedIds(userId, [...surfacedRef.current]).catch(() => undefined);
+    }
+    setPopup(null);
+  }, [userId]);
+
   const selectUser = useCallback(async (nextUserId: string) => {
     setUserId(nextUserId);
     setConversations([]);
+    setPopup(null);
     await appStorage.setSelectedUser(nextUserId);
     const cached = await appStorage.getConversations(nextUserId);
     setConversations(cached ?? []);
@@ -150,7 +333,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setConversations(fresh);
       setConnected(true);
       await appStorage.setConversations(nextUserId, fresh);
-      // Push is best effort; a missing EAS projectId just means local notifications.
+      // Push is best effort; registration is gated by the notifications toggle.
       await registerDeviceForPush(nextUserId);
     } catch {
       setConnected(false);
@@ -166,16 +349,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAuthEnabled(true);
     setConnected(true);
     setConversations([]);
+    setPopup(null);
     await registerDeviceForPush(identity.userId);
     showToast(`Signed in as ${identity.userId}`);
   }, [showToast]);
 
   const logout = useCallback(async () => {
-    if (userId) await unregisterDeviceForPush(userId);
+    if (userId) {
+      await unregisterDeviceForPush(userId);
+      await appStorage.clearNotificationCache(userId).catch(() => undefined);
+    }
     setBearerToken(null);
     await authTokens.clear();
     setUserId(null);
     setConversations([]);
+    notificationsRef.current = [];
+    cursorRef.current = 0;
+    surfacedRef.current = new Set();
+    setNotifications([]);
+    setUnreadCount(0);
+    setPopup(null);
     showToast('Signed out');
   }, [userId, showToast]);
 
@@ -201,24 +394,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [userId, refreshConversations]);
 
   const updateSettings = useCallback(async (patch: Partial<AppSettings>) => {
+    const wasEnabled = settingsRef.current.notificationsEnabled;
+    const enabling = patch.notificationsEnabled === true && !wasEnabled;
+    const disabling = patch.notificationsEnabled === false && wasEnabled;
     setSettings((current) => {
       const next = { ...current, ...patch };
+      settingsRef.current = next;
       if (patch.apiBaseUrl) api.setBaseUrl(patch.apiBaseUrl);
       void appStorage.setSettings(next);
       return next;
     });
-  }, []);
+    if (enabling && userId) {
+      // Jump the cursor to the current max so enabling does not replay old items.
+      await syncCursorToLatest(userId);
+      await registerDeviceForPush(userId);
+    } else if (disabling && userId) {
+      await unregisterDeviceForPush(userId);
+      notificationsRef.current = [];
+      cursorRef.current = 0;
+      surfacedRef.current = new Set();
+      setNotifications([]);
+      setUnreadCount(0);
+      setPopup(null);
+      await appStorage.clearNotificationCache(userId).catch(() => undefined);
+    }
+  }, [userId, syncCursorToLatest]);
 
   const value = useMemo<AppContextValue>(
     () => ({
       users, userId, conversations, settings, booted, connected, authEnabled, toast,
+      notifications, unreadCount, popup, refreshNotifications, markRead, markAllRead,
+      markNotificationSurfaced, dismissPopup,
       selectUser, loginWithToken, logout, refreshConversations, createConversation,
       deleteConversation, startRun, updateSettings, showToast,
     }),
     [
-      users, userId, conversations, settings, booted, connected, authEnabled, toast, selectUser,
-      loginWithToken, logout, refreshConversations, createConversation, deleteConversation,
-      startRun, updateSettings, showToast,
+      users, userId, conversations, settings, booted, connected, authEnabled, toast,
+      notifications, unreadCount, popup, refreshNotifications, markRead, markAllRead,
+      markNotificationSurfaced, dismissPopup,
+      selectUser, loginWithToken, logout, refreshConversations, createConversation,
+      deleteConversation, startRun, updateSettings, showToast,
     ],
   );
 

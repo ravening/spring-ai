@@ -59,7 +59,10 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": ""
+      }
     }
   }
 }
