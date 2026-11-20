@@ -9,7 +9,7 @@ import {
   POLL_INTERVAL_MS, popupCandidate,
 } from '@/lib/notificationSync';
 import type {
-  BankUser, ConversationSummary, NotificationDto, StartRunResponse,
+  AuthMe, BankUser, ConversationSummary, NotificationDto, StartRunResponse,
 } from '@/lib/types';
 
 interface AppContextValue {
@@ -133,15 +133,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
           resolvedUser = null;
         } else if (mounted) {
+          // Backend unreachable (not an auth rejection): keep the saved identity so
+          // the cached conversations remain viewable offline.
           setConnected(false);
+          if (resolvedUser) setUserId(resolvedUser);
         }
       }
 
       try {
         const directory = await api.listUsers();
         if (mounted) setUsers(directory);
-      } catch {
-        if (mounted) setConnected(false);
+      } catch (error) {
+        // A 401 only means token auth is on and no token is set yet; the backend is
+        // reachable, so it must not flip the app into the offline state.
+        if (mounted && !(error instanceof ApiError && error.status === 401)) setConnected(false);
       }
       if (resolvedUser) {
         const cached = await appStorage.getConversations(resolvedUser);
@@ -209,9 +214,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await appStorage.setNotifications(user, merged).catch(() => undefined);
 
         const candidate = popupCandidate(page.items, previousCursor, surfacedRef.current);
+        // Everything new in this poll counts as surfaced so a later poll cannot
+        // re-pop it; at most one popup is shown per poll.
+        const hadFresh = page.items.some((item) => item.id > previousCursor);
+        for (const item of page.items) {
+          if (item.id > previousCursor) surfacedRef.current.add(item.id);
+        }
         if (candidate && AppState.currentState === 'active') {
           setPopup(candidate);
-          surfacedRef.current.add(candidate.id);
+        }
+        if (hadFresh) {
           await appStorage.setSurfacedIds(user, [...surfacedRef.current]).catch(() => undefined);
         }
         const next = nextCursor(previousCursor, page.items);
@@ -342,8 +354,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithToken = useCallback(async (token: string) => {
     setBearerToken(token);
+    let identity: AuthMe;
+    try {
+      identity = await api.authMe();
+    } catch (error) {
+      // Do not persist a token the server rejected.
+      setBearerToken(null);
+      throw error;
+    }
     await authTokens.set(token);
-    const identity = await api.authMe();
     await appStorage.setSelectedUser(identity.userId);
     setUserId(identity.userId);
     setAuthEnabled(true);

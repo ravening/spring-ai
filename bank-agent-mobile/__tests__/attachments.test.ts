@@ -1,6 +1,5 @@
 import {
-  MAX_UPLOAD_BYTES, extensionOf, fileNameFromUri, guessMimeType, needsHeicConversion,
-  validateAttachment,
+  ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES, extensionOf, fileNameFromUri, guessMimeType, validateAttachment,
 } from '../src/lib/attachments';
 
 describe('attachment helpers', () => {
@@ -10,16 +9,25 @@ describe('attachment helpers', () => {
     expect(fileNameFromUri('file:///tmp/my%20statement.pdf')).toBe('my statement.pdf');
   });
 
-  it('guesses MIME types and detects HEIC', () => {
-    expect(guessMimeType('photo.png')).toBe('image/png');
+  it('guesses MIME types', () => {
     expect(guessMimeType('contract.docx')).toContain('wordprocessingml');
+    expect(guessMimeType('notes.md')).toBe('text/markdown');
     expect(guessMimeType('unknown.zzz')).toBe('application/octet-stream');
-    expect(needsHeicConversion('IMG_1.HEIC')).toBe(true);
-    expect(needsHeicConversion('photo.jpg')).toBe(false);
+  });
+
+  it('only allows extensions the backend can index (KnowledgeService.SUPPORTED_EXTENSIONS)', () => {
+    for (const ext of ['txt', 'md', 'pdf', 'docx', 'csv', 'html', 'xlsx', 'pptx', 'odt', 'rtf']) {
+      expect(ALLOWED_EXTENSIONS).toContain(ext);
+    }
+    expect(ALLOWED_EXTENSIONS).not.toContain('jpg');
+    expect(ALLOWED_EXTENSIONS).not.toContain('png');
+    expect(ALLOWED_EXTENSIONS).not.toContain('heic');
   });
 
   it('validates supported files', () => {
     expect(validateAttachment({ uri: 'x', name: 'a.pdf', mimeType: 'application/pdf' })).toBeNull();
+    expect(validateAttachment({ uri: 'x', name: 'photo.jpg', mimeType: 'image/jpeg' }))
+      .toContain('not supported');
     expect(validateAttachment({ uri: 'x', name: 'virus.exe', mimeType: 'application/octet-stream' }))
       .toContain('not supported');
     expect(validateAttachment({

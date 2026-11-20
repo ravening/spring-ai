@@ -4,7 +4,6 @@ import type { ChatItem } from '@/lib/types';
 
 interface Props {
   item: ChatItem;
-  showTrace?: boolean;
   onSpeak?: (text: string) => void;
   speaking?: boolean;
 }
@@ -16,7 +15,7 @@ function formatTime(iso: string | null): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export function ChatMessage({ item, showTrace, onSpeak, speaking }: Props) {
+export function ChatMessage({ item, onSpeak, speaking }: Props) {
   const isUser = item.role === 'user';
   return (
     <View style={[styles.row, isUser ? styles.rowUser : styles.rowAssistant]}>
@@ -35,7 +34,7 @@ export function ChatMessage({ item, showTrace, onSpeak, speaking }: Props) {
         {item.error && <Text style={styles.errorText}>Could not complete this request.</Text>}
         <View style={styles.metaRow}>
           <Text style={styles.time}>{formatTime(item.createdAt)}</Text>
-          {showTrace && item.runId && <Text style={styles.runId}>run {item.runId.slice(0, 8)}</Text>}
+          {item.runId && <Text style={styles.runId}>run {item.runId.slice(0, 8)}</Text>}
           {!isUser && !item.pending && Boolean(item.content) && onSpeak && (
             <TouchableOpacity accessibilityLabel="Read answer aloud" onPress={() => onSpeak(item.content)}>
               <Text style={styles.speak}>{speaking ? '■ Stop' : '▶ Listen'}</Text>

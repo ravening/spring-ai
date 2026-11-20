@@ -53,7 +53,8 @@ public class ChatController {
     }
 
     @GetMapping("/runs/{runId}")
-    public RunRecord.RunStatus runStatus(@PathVariable String runId) {
+    public RunRecord.RunStatus runStatus(HttpServletRequest http, @PathVariable String runId) {
+        ensureRunOwner(http, runId);
         return chatService.status(runId);
     }
 
@@ -63,7 +64,8 @@ public class ChatController {
      * then {@code done}. Falls back to plain polling when the browser has no EventSource.
      */
     @GetMapping(value = "/runs/{runId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<StreamPayload>> runStream(@PathVariable String runId) {
+    public Flux<ServerSentEvent<StreamPayload>> runStream(HttpServletRequest http, @PathVariable String runId) {
+        ensureRunOwner(http, runId);
         return this.chatService.answerStream(runId)
                 .map(ev -> ServerSentEvent.<StreamPayload>builder()
                         .event(ev.newDraft() ? "draft" : "delta")
@@ -79,11 +81,29 @@ public class ChatController {
     }
 
     /**
+     * When token auth is enabled, a run may only be read by the user it belongs to
+     * (the runId is an unguessable UUID, but every other resource enforces ownership,
+     * so the run endpoints do too). In demo mode there is no verified identity and
+     * the check is skipped.
+     */
+    private void ensureRunOwner(HttpServletRequest http, String runId) {
+        String verified = AuthSupport.currentUserId(http, null);
+        if (verified == null) {
+            return;
+        }
+        RunRecord.RunStatus status = chatService.status(runId); // 404 when the run is unknown
+        if (!verified.equals(status.userId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Run belongs to another user");
+        }
+    }
+
+    /**
      * Spoken version of a completed run's answer (synthesized after the run finished).
      * 404 when voice is disabled or synthesis did not produce audio for this run.
      */
     @GetMapping("/runs/{runId}/audio")
-    public ResponseEntity<Resource> runAudio(@PathVariable String runId) throws IOException {
+    public ResponseEntity<Resource> runAudio(HttpServletRequest http, @PathVariable String runId) throws IOException {
+        ensureRunOwner(http, runId);
         if (!runId.matches("[A-Za-z0-9_-]{1,64}")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid runId");
         }

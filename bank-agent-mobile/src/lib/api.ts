@@ -23,6 +23,8 @@ import type {
   VoiceStatus,
 } from './types';
 
+declare const require: (moduleId: string) => any;
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -271,6 +273,27 @@ export class BankApiClient {
 
   getRunAudioUrl(runId: string): string {
     return buildUrl(this.baseUrl, `/api/runs/${encodeURIComponent(runId)}/audio`);
+  }
+
+  /**
+   * Downloads the server-synthesized answer audio with the bearer token attached and
+   * writes it to the cache directory, returning the local file URI. Needed because
+   * expo-audio cannot send an Authorization header for a remote URL, so playback
+   * would 401 whenever token auth is enabled. Returns null when the run has no audio.
+   */
+  async downloadRunAudio(runId: string, signal?: AbortSignal): Promise<string | null> {
+    const response = await this.authenticatedFetch(this.getRunAudioUrl(runId), { signal });
+    if (!response.ok) {
+      await response.body?.cancel?.().catch(() => undefined);
+      return null;
+    }
+    const buffer = await response.arrayBuffer();
+    // Lazy require so Node-based unit tests never load the native module.
+    const { File, Paths } = require('expo-file-system') as typeof import('expo-file-system');
+    const file = new File(Paths.cache, `run-${runId}.mp3`);
+    if (file.exists) file.delete();
+    await file.write(buffer);
+    return file.uri;
   }
 
   listDocuments(userId: string, conversationId?: string): Promise<DocumentInfo[]> {

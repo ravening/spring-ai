@@ -69,15 +69,15 @@ describe('notification inbox API', () => {
 
   it('exposes accounts, transfers and job CRUD including PATCH', async () => {
     const { client, calls } = makeClient((url, init) => {
-      if (url.includes('/accounts')) return jsonResponse([{ accountId: 'ACC-ALICE-CHECK', balance: '100.00' }]);
+      if (url.includes('/accounts')) return jsonResponse([{ accountId: 'ACC-ALICE-CHECK', balance: 100.00 }]);
       if (url.includes('/transfers') && init?.method === 'POST') {
-        return jsonResponse({ txnId: 'TXN-1', recipientNewBalance: '110.00' }, 201);
+        return jsonResponse({ txnId: 'TXN-1', recipientNewBalance: 110.00 }, 201);
       }
       if (url.includes('/jobs') && init?.method === 'PATCH') return jsonResponse({ id: 'j1', status: 'PAUSED' });
       if (url.includes('/run')) return jsonResponse({ id: 'j1', status: 'DONE' });
       return jsonResponse({ id: 'j1', status: 'PENDING' });
     });
-    await expect(client.listAccounts('alice')).resolves.toEqual([{ accountId: 'ACC-ALICE-CHECK', balance: '100.00' }]);
+    await expect(client.listAccounts('alice')).resolves.toEqual([{ accountId: 'ACC-ALICE-CHECK', balance: 100.00 }]);
     await expect(client.createTransfer('alice', {
       fromAccountId: 'ACC-ALICE-CHECK', toUserId: 'carol', toAccountId: 'ACC-CAROL-CHECK', amount: '10',
     })).resolves.toMatchObject({ txnId: 'TXN-1' });

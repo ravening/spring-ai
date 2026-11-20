@@ -38,7 +38,7 @@ Set the backend URL either:
 | Conversation list / create / delete | `/api/conversations` endpoints |
 | **Web ↔ mobile continuity** | same backend + same `userId` → identical history |
 | Markdown answers incl. tables | local parser in `src/lib/markdown.ts` (no WebView) |
-| Files / photos / camera | `POST /api/documents`, HEIC→JPEG on iOS, `chat`/`user` scope |
+| Files | `POST /api/documents` with `chat`/`user` scope; extensions limited to what the backend indexes (pdf, docx, txt, csv, html, …) |
 | Voice input | on-device STT (`expo-speech-recognition`) with server `/api/chat/voice` fallback |
 | Voice output | on-device TTS (`expo-speech`) + optional server MP3 `/api/runs/{id}/audio` |
 | Offline cache | recent conversations cached with AsyncStorage |
@@ -65,15 +65,15 @@ from the demo picker to a token login screen automatically.
 
 Remote push tokens come from Expo and require an EAS project id (`extra.eas.projectId`
 in `app.json`, created by `eas init` with an Expo account). Without it, the app keeps
-using local notifications. Store push registrations are in-memory on the backend and
-should be persisted for production.
+using local notifications. Push registrations are persisted in the backend's H2
+`push_devices` table.
 
 The web demo and all `localhost` workflows still work with auth disabled (the default).
 
 ## Scripts
 
 ```bash
-npm test          # Jest unit tests (41 active; 4 live tests skipped by default)
+npm test          # Jest unit tests (live backend tests skipped unless LIVE_API=1)
 npm run typecheck # tsc --noEmit
 npm run export:ios     # bundle check for iOS
 npm run export:android # bundle check for Android
