@@ -1,0 +1,25 @@
+# DeepRelay is the default OpenAI-compatible provider.
+# Activated with AI_PROVIDER=deeprelay (the default) or SPRING_PROFILES_ACTIVE=deeprelay.
+spring:
+  ai:
+    openai:
+      base-url: ${DEEPRELAY_BASE_URL:https://api.deeprelay.ai/v1}
+      api-key: ${DEEPRELAY_API_KEY:not-set}
+      chat:
+        model: ${DEEPRELAY_MODEL:deeprelay/deepseek-v4.1-flash}
+        temperature: 0.2
+
+embabel:
+  models:
+    # Custom model registered below; avoids Embabel's built-in gpt-* default.
+    default-llm: ${DEEPRELAY_MODEL:deeprelay/deepseek-v4.1-flash}
+  agent:
+    platform:
+      models:
+        openai:
+          custom:
+            base-url: ${DEEPRELAY_BASE_URL:https://api.deeprelay.ai/v1}
+            api-key: ${DEEPRELAY_API_KEY:not-set}
+            models: ${DEEPRELAY_MODEL:deeprelay/deepseek-v4.1-flash}
+            max-attempts: 1
+            backoff-millis: 200

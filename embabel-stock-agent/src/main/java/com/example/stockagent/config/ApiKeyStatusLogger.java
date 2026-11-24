@@ -1,5 +1,7 @@
 package com.example.stockagent.config;
 
+import java.util.Arrays;
+
 import com.example.stockagent.tools.FinnhubClient;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -23,13 +25,17 @@ public class ApiKeyStatusLogger {
 
     @PostConstruct
     public void report() {
-        boolean deepRelay = present(environment.getProperty("DEEPRELAY_API_KEY"));
+        boolean azure = Arrays.stream(environment.getActiveProfiles()).anyMatch("azure"::equals)
+                || Arrays.stream(environment.getDefaultProfiles()).anyMatch("azure"::equals);
+        String provider = azure ? "azure" : "deeprelay";
+        boolean aiKey = present(environment.getProperty("spring.ai.openai.api-key"));
         boolean finnhubKey = finnhub.configured();
-        log.info("Credentials loaded from .env/environment: DeepRelay API key present={}, Finnhub API key present={}",
-                deepRelay, finnhubKey);
-        if (!deepRelay || !finnhubKey) {
-            log.warn("A key is missing. Add KEY=value lines to .env in the project root "
-                    + "or export them as environment variables, then restart.");
+        log.info("AI provider={}, AI API key present={}, Finnhub API key present={}",
+                provider, aiKey, finnhubKey);
+        if (!aiKey || !finnhubKey) {
+            log.warn("A key is missing. Set the {} key for the active provider and FINNHUB_API_KEY "
+                    + "(environment variables or .env), then restart.",
+                    azure ? "AZURE_OPENAI_API_KEY" : "DEEPRELAY_API_KEY");
         }
     }
 

@@ -65,13 +65,23 @@ filters tools by allowed origin (`local`, `mcp`).
 
 - JDK 21+
 - Maven 3.9+
-- An OpenAI-compatible endpoint. This demo defaults to DeepRelay.
+- An OpenAI-compatible endpoint. This demo defaults to DeepRelay; Azure / Microsoft
+  Foundry is also supported by setting `AI_PROVIDER=azure` (see the configuration table).
 
 ```bash
 export DEEPRELAY_API_KEY=your-key
 # optional
 export DEEPRELAY_BASE_URL=https://api.deeprelay.ai/v1
 export DEEPRELAY_MODEL=deeprelay/deepseek-v4.1-flash
+```
+
+Azure / Microsoft Foundry alternative:
+
+```bash
+export AI_PROVIDER=azure
+export AZURE_OPENAI_ENDPOINT=https://<resource-name>.openai.azure.com/openai/v1
+export AZURE_OPENAI_API_KEY=your-key
+export AZURE_CHAT_DEPLOYMENT=gpt-4.1
 ```
 
 ## Run it
@@ -221,9 +231,13 @@ Agent app (`application.yml`):
 | Property | Default |
 |---|---|
 | `server.port` | `8090` |
-| `DEEPRELAY_API_KEY` | required |
+| `AI_PROVIDER` | `deeprelay` (`deeprelay` or `azure`) |
+| `DEEPRELAY_API_KEY` | required when `AI_PROVIDER=deeprelay` |
 | `DEEPRELAY_BASE_URL` | `https://api.deeprelay.ai/v1` |
 | `DEEPRELAY_MODEL` | `deeprelay/deepseek-v4.1-flash` |
+| `AZURE_OPENAI_ENDPOINT` | required when `AI_PROVIDER=azure`; e.g. `https://<resource>.openai.azure.com/openai/v1` |
+| `AZURE_OPENAI_API_KEY` | required when `AI_PROVIDER=azure` |
+| `AZURE_CHAT_DEPLOYMENT` | `gpt-4.1` (Azure deployment name) |
 | `AGENT_MCP_ENABLED` | `true` |
 | `AGENT_MCP_URL` | `http://localhost:8091` |
 | `AGENT_MCP_ENDPOINT` | `/mcp` |

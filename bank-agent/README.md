@@ -13,6 +13,21 @@ export DEEPRELAY_API_KEY=your-key
 ./run-bank-app.sh   # terminal 2: bank app + UI on http://localhost:8095
 ```
 
+Azure / Microsoft Foundry alternative:
+
+```bash
+cd bank-agent
+export AI_PROVIDER=azure
+export AZURE_OPENAI_ENDPOINT=https://<resource-name>.openai.azure.com/openai/v1
+export AZURE_OPENAI_API_KEY=your-key
+export AZURE_CHAT_DEPLOYMENT=gpt-4.1
+./run-bank-mcp.sh
+./run-bank-app.sh
+```
+
+To use Azure voice chat, deploy `gpt-4o-mini-tts` and `gpt-4o-mini-transcribe`
+(or `whisper`) and set `BANK_VOICE_ENABLED=true`.
+
 Open <http://localhost:8095>, pick a demo customer (alice, bob or carol) and ask:
 
 - "What is my account balance?"
@@ -105,16 +120,34 @@ for app-internal capabilities (RAG retrieval, arithmetic, time).
 | Property | Default |
 |---|---|
 | `BANK_PORT` / `BANK_MCP_PORT` | `8095` / `8096` |
-| `DEEPRELAY_API_KEY`, `DEEPRELAY_BASE_URL`, `DEEPRELAY_MODEL`, `DEEPRELAY_REASONING_EFFORT` | DeepRelay endpoint, model `deeprelay/deepseek-v4.1-flash` |
+| `AI_PROVIDER` | `deeprelay` (`deeprelay` or `azure`) |
+| `DEEPRELAY_API_KEY`, `DEEPRELAY_BASE_URL`, `DEEPRELAY_MODEL`, `DEEPRELAY_REASONING_EFFORT` | used when `AI_PROVIDER=deeprelay`; model `deeprelay/deepseek-v4.1-flash` |
+| `AZURE_OPENAI_ENDPOINT` | required when `AI_PROVIDER=azure`; e.g. `https://<resource>.openai.azure.com/openai/v1` |
+| `AZURE_OPENAI_API_KEY` | required when `AI_PROVIDER=azure` |
+| `AZURE_CHAT_DEPLOYMENT` | `gpt-4.1` (Azure deployment name) |
 | `BANK_MCP_ENABLED`, `BANK_MCP_URL`, `BANK_MCP_ENDPOINT` | `true`, `http://localhost:8096`, `/mcp` |
 | `BANK_RAG_ENABLED`, `BANK_RAG_TOP_K`, `BANK_RAG_SIMILARITY_THRESHOLD`, `BANK_RAG_VECTOR_STORE_FILE` | `true`, `4`, `0.25`, `data/bank-vector-store.json` |
 | `BANK_CHAT_MEMORY_MAX_MESSAGES` | `40` |
 | `BANK_AGENTS_MAX_REVISIONS` | `2` |
 | `BANK_UPLOADS_DIR`, `BANK_EMBEDDING_CACHE_DIR` | `data/uploads`, `data/model-cache` |
 | `BANK_VOICE_ENABLED` | `false` — set `true` to enable voice chat (mic button in the UI) |
-| `AUDIO_API_KEY`, `AUDIO_BASE_URL` | required when voice is enabled; default base URL `https://api.openai.com/v1` (DeepRelay does not proxy the OpenAI audio endpoints, so STT/TTS use this separate key/endpoint) |
+| `AUDIO_API_KEY`, `AUDIO_BASE_URL` | used when `AI_PROVIDER=deeprelay`; required when voice is enabled; default base URL `https://api.openai.com/v1` (DeepRelay does not proxy the OpenAI audio endpoints) |
 | `AUDIO_STT_MODEL`, `AUDIO_TTS_MODEL`, `AUDIO_TTS_VOICE` | `whisper-1`, `gpt-4o-mini-tts`, `alloy` |
+| `AZURE_STT_DEPLOYMENT`, `AZURE_TTS_DEPLOYMENT`, `AZURE_TTS_VOICE` | `gpt-4o-mini-transcribe`, `gpt-4o-mini-tts`, `alloy` (used when `AI_PROVIDER=azure`) |
+| `AZURE_AUDIO_BASE_URL`, `AZURE_AUDIO_MODE`, `AZURE_AUDIO_API_VERSION` | defaults to `AZURE_OPENAI_ENDPOINT`, `legacy`, `2025-03-01-preview` |
 | `BANK_VOICE_MAX_UPLOAD_BYTES`, `BANK_VOICE_MAX_TTS_CHARS`, `BANK_VOICE_AUDIO_DIR` | `10485760`, `4000`, `data/audio` |
+
+`AZURE_AUDIO_MODE=legacy` uses `https://<resource>.openai.azure.com` with an
+`api-version` (safest for the OpenAI audio deployments). `unified` uses the
+`/openai/v1` endpoint. Set `AZURE_AUDIO_BASE_URL` if your audio endpoint is
+different from the chat endpoint.
+
+Voice can also be pointed at Azure while chat stays on DeepRelay: set
+`bank.voice.azure.enabled=true`, `bank.voice.base-url` to the Azure resource URL,
+`bank.voice.api-key` to the Azure key and the `bank.voice.*-model` deployments.
+
+The mobile app (`../bank-agent-mobile`) talks to the same REST/SSE endpoints and
+needs no changes; it discovers server voice through `GET /api/voice/status`.
 
 Voice chat: with server voice enabled, the browser records audio (`MediaRecorder`)
 and posts it to `POST /api/chat/voice`; the server transcribes it (STT) and runs the
@@ -156,5 +189,5 @@ validation, one active run per conversation).
 mvn -q -DskipTests package   # build
 mvn test                      # unit tests (BankData, RunRegistry, PromptSafety, …)
 ./run-bank-mcp.sh             # terminal 1
-./run-bank-app.sh             # terminal 2 (needs DEEPRELAY_API_KEY)
+./run-bank-app.sh             # terminal 2 (needs DEEPRELAY_API_KEY, or AZURE_OPENAI_* with AI_PROVIDER=azure)
 ```

@@ -1,0 +1,34 @@
+# Microsoft Foundry / Azure OpenAI provider.
+# Activated with AI_PROVIDER=azure or SPRING_PROFILES_ACTIVE=azure.
+#
+# AZURE_OPENAI_ENDPOINT must be the OpenAI-compatible v1 endpoint, for example:
+#   https://<resource-name>.openai.azure.com/openai/v1
+#   https://<resource-name>.services.ai.azure.com/openai/v1
+#
+# RAG keeps using the local MiniLM embedding model, so no Azure embedding
+# deployment is required.
+spring:
+  ai:
+    openai:
+      base-url: ${AZURE_OPENAI_ENDPOINT}
+      api-key: ${AZURE_OPENAI_API_KEY}
+      microsoft-foundry: true
+      chat:
+        model: ${AZURE_CHAT_DEPLOYMENT:gpt-4.1}
+        microsoft-deployment-name: ${AZURE_CHAT_DEPLOYMENT:gpt-4.1}
+
+bank:
+  voice:
+    # Voice is created only when BANK_VOICE_ENABLED=true (bank.voice.enabled).
+    # The chat provider switch does not turn voice on.
+    base-url: ${AZURE_AUDIO_BASE_URL:${AZURE_OPENAI_ENDPOINT}}
+    api-key: ${AZURE_OPENAI_API_KEY}
+    stt-model: ${AZURE_STT_DEPLOYMENT:gpt-4o-mini-transcribe}
+    tts-model: ${AZURE_TTS_DEPLOYMENT:gpt-4o-mini-tts}
+    tts-voice: ${AZURE_TTS_VOICE:alloy}
+    azure:
+      enabled: true
+      # legacy: https://<resource>.openai.azure.com + api-version (safest for audio)
+      # unified: https://<resource>.openai.azure.com/openai/v1
+      mode: ${AZURE_AUDIO_MODE:legacy}
+      service-version: ${AZURE_AUDIO_API_VERSION:2025-03-01-preview}

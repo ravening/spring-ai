@@ -77,7 +77,8 @@ public class VoiceController {
         TranscriptionModel model = this.transcriptionModel.getIfAvailable();
         if (model == null) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "Voice input is disabled. Set BANK_VOICE_ENABLED=true and AUDIO_API_KEY.");
+                    "Voice input is disabled. Set BANK_VOICE_ENABLED=true and AUDIO_API_KEY "
+                            + "(or AZURE_OPENAI_API_KEY when using the azure profile).");
         }
         if (audio.isEmpty() || audio.getSize() > this.voice.maxUploadBytes()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

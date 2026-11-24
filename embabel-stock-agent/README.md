@@ -43,7 +43,10 @@ each chat keeps its own history and document scope.
   `stock_analyze`) plus the built-in banner, published at `/mcp` using Streamable
   HTTP (default port 8092).
 - **Client**: run with `--spring.profiles.active=mcp-client` to connect to an
-  external MCP server (example config in `application-mcp-client.yml`).
+  external MCP server (example config in `application-mcp-client.yml`). Combine it
+  with the provider profile when needed: `--spring.profiles.active=azure,mcp-client`.
+  (`AI_PROVIDER=azure` selects the default profile; an explicit active profile
+  overrides that default, so include `azure` in the list.)
 
 ## Run
 
@@ -53,7 +56,7 @@ docker compose up -d
 
 # 2. Configure keys — .env is imported automatically by Spring Boot
 cp .env.example .env
-# edit DEEPRELAY_API_KEY and FINNHUB_API_KEY (KEY=value lines, no export needed)
+# edit the key for your provider (AI_PROVIDER=deeprelay or azure) and FINNHUB_API_KEY
 
 # 3. Build UI into the Spring Boot jar (first time, or after UI changes)
 ./scripts/build-frontend.sh
@@ -66,13 +69,28 @@ java -jar target/embabel-stock-agent-0.0.1-SNAPSHOT.jar
 Open <http://localhost:8092>. For UI development, run `npm run dev` inside
 `frontend/` (Vite proxies `/api` to port 8092).
 
+Azure / Microsoft Foundry alternative (in `.env`):
+
+```properties
+AI_PROVIDER=azure
+AZURE_OPENAI_ENDPOINT=https://<resource-name>.openai.azure.com/openai/v1
+AZURE_OPENAI_API_KEY=your-azure-key
+AZURE_CHAT_DEPLOYMENT=gpt-4.1
+```
+
 Key environment variables:
 
 | Variable | Purpose |
 |---|---|
+| `AI_PROVIDER` | `deeprelay` (default) or `azure` |
 | `DEEPRELAY_BASE_URL` / `DEEPRELAY_API_KEY` / `DEEPRELAY_MODEL` | DeepRelay OpenAI-compatible chat model (also registered as Embabel's default LLM) |
+| `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_API_KEY` / `AZURE_CHAT_DEPLOYMENT` | Microsoft Foundry OpenAI-compatible endpoint, key and deployment; used when `AI_PROVIDER=azure` |
 | `FINNHUB_API_KEY` | Real-time quote, news, earnings calendar, dividends |
 | `POSTGRES_URL` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | Postgres/pgvector connection |
+
+RAG keeps using local MiniLM embeddings (384 dimensions) in both provider modes, so
+the existing pgvector table and uploaded documents continue to work. No Azure
+embedding deployment is required.
 
 Yahoo Finance chart JSON is keyless and used for historical candles; it is
 delayed and unofficial. Finnhub free keys are for personal use — check licensing
