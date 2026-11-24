@@ -26,7 +26,7 @@ view() { curl -sf "$BASE_URL/api/agent/runs/$1" | jq .; }
 start_app() {
   local delay="$1"
   echo "==> starting app (step delay $delay)"
-  AGENT_TEMPORAL_STEP_DELAY="$delay" ./mvnw -q spring-boot:run > /tmp/agent-crash-demo.log 2>&1 &
+  AGENT_TEMPORAL_STEP_DELAY="$delay" mvn -q spring-boot:run > /tmp/agent-crash-demo.log 2>&1 &
   APP_PID=$!
   echo "$APP_PID" > /tmp/agent-crash-demo.pid
   for i in $(seq 1 120); do
