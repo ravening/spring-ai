@@ -1,0 +1,23 @@
+# DeepRelay is the default OpenAI-compatible provider.
+# Activated with AI_PROVIDER=deeprelay (the default) or SPRING_PROFILES_ACTIVE=deeprelay.
+#
+# DeepRelay does not proxy the OpenAI audio endpoints, so voice uses its own
+# OpenAI-compatible audio endpoint/key (AUDIO_BASE_URL / AUDIO_API_KEY).
+spring:
+  ai:
+    openai:
+      base-url: ${DEEPRELAY_BASE_URL:https://api.deeprelay.ai/v1}
+      api-key: ${DEEPRELAY_API_KEY}
+      chat:
+        model: ${DEEPRELAY_MODEL:deeprelay/deepseek-v4.1-flash}
+        reasoning-effort: ${DEEPRELAY_REASONING_EFFORT:none}
+
+bank:
+  voice:
+    api-key: ${AUDIO_API_KEY:}
+    base-url: ${AUDIO_BASE_URL:https://api.openai.com/v1}
+    stt-model: ${AUDIO_STT_MODEL:whisper-1}
+    tts-model: ${AUDIO_TTS_MODEL:gpt-4o-mini-tts}
+    tts-voice: ${AUDIO_TTS_VOICE:alloy}
+    azure:
+      enabled: false

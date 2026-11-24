@@ -1,6 +1,10 @@
 spring:
   application:
     name: deeprelay-spring-ai
+  profiles:
+    # Switch the chat/embedding provider with AI_PROVIDER=deeprelay or AI_PROVIDER=azure.
+    # The provider-specific settings live in application-deeprelay.yml / application-azure.yml.
+    default: ${AI_PROVIDER:deeprelay}
   datasource:
     url: jdbc:h2:file:./data/chat-memory;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
@@ -18,12 +22,6 @@ spring:
             initialize-schema: always
     model:
       embedding: transformers
-    openai:
-      base-url: https://api.deeprelay.ai/v1
-      api-key: ${DEEPRELAY_API_KEY}
-      chat:
-        model: ${DEEPRELAY_MODEL:deeprelay/deepseek-v4.1-flash}
-        reasoning-effort: ${DEEPRELAY_REASONING_EFFORT:none}
     embedding:
       transformer:
         cache:

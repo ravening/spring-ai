@@ -9,8 +9,12 @@ spring:
   application:
     name: embabel-stock-agent
 
+  profiles:
+    # Switch the chat/LLM provider with AI_PROVIDER=deeprelay or AI_PROVIDER=azure.
+    default: ${AI_PROVIDER:deeprelay}
+
   # Spring Boot does not read .env automatically. Import it as a properties file
-  # so DEEPRELAY_*, FINNHUB_* and POSTGRES_* placeholders resolve at startup.
+  # so DEEPRELAY_*, AZURE_*, FINNHUB_* and POSTGRES_* placeholders resolve at startup.
   config:
     import: optional:file:.env[.properties]
 
@@ -21,14 +25,6 @@ spring:
     driver-class-name: org.postgresql.Driver
 
   ai:
-    # ---------- Chat model: DeepRelay (OpenAI-compatible API) ----------
-    openai:
-      base-url: ${DEEPRELAY_BASE_URL:https://api.deeprelay.ai/v1}
-      api-key: ${DEEPRELAY_API_KEY:not-set}
-      chat:
-        model: ${DEEPRELAY_MODEL:deeprelay/deepseek-v4.1-flash}
-        temperature: 0.2
-
     # ---------- Embeddings: local MiniLM via ONNX Transformers (no extra key) ----------
     model:
       embedding: transformers
@@ -98,9 +94,6 @@ app:
     directory: ${UPLOAD_DIR:data/uploads}
 
 embabel:
-  models:
-    # Custom model registered below; avoids Embabel's built-in gpt-* default.
-    default-llm: ${DEEPRELAY_MODEL:deeprelay/deepseek-v4.1-flash}
   agent:
     platform:
       llm-operations:
@@ -112,12 +105,6 @@ embabel:
           backoff-millis: 200
           backoff-multiplier: 1.1
           backoff-max-interval: 1000
-          custom:
-            base-url: ${DEEPRELAY_BASE_URL:https://api.deeprelay.ai/v1}
-            api-key: ${DEEPRELAY_API_KEY:not-set}
-            models: ${DEEPRELAY_MODEL:deeprelay/deepseek-v4.1-flash}
-            max-attempts: 1
-            backoff-millis: 200
       observability:
         capture-message-content: false
 

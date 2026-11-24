@@ -1,0 +1,20 @@
+# Microsoft Foundry / Azure OpenAI provider.
+# Activated with AI_PROVIDER=azure or SPRING_PROFILES_ACTIVE=azure.
+#
+# AZURE_OPENAI_ENDPOINT must be the OpenAI-compatible v1 endpoint, for example:
+#   https://<resource-name>.openai.azure.com/openai/v1
+#   https://<resource-name>.services.ai.azure.com/openai/v1
+# The deployment name is used as the model id. If your deployment is not named
+# exactly like the model, set AZURE_CHAT_DEPLOYMENT to the deployment name.
+#
+# RAG keeps using the local MiniLM embedding model, so no Azure embedding
+# deployment is required.
+spring:
+  ai:
+    openai:
+      base-url: ${AZURE_OPENAI_ENDPOINT}
+      api-key: ${AZURE_OPENAI_API_KEY}
+      microsoft-foundry: true
+      chat:
+        model: ${AZURE_CHAT_DEPLOYMENT:gpt-4.1}
+        microsoft-deployment-name: ${AZURE_CHAT_DEPLOYMENT:gpt-4.1}

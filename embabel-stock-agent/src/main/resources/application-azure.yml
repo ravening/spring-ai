@@ -1,0 +1,38 @@
+# Microsoft Foundry / Azure OpenAI provider.
+# Activated with AI_PROVIDER=azure or SPRING_PROFILES_ACTIVE=azure.
+#
+# AZURE_OPENAI_ENDPOINT must be the OpenAI-compatible v1 endpoint, for example:
+#   https://<resource-name>.openai.azure.com/openai/v1
+#   https://<resource-name>.services.ai.azure.com/openai/v1
+# Embabel's custom OpenAI client appends /chat/completions to this base URL, so
+# the /openai/v1 suffix is required.
+#
+# RAG keeps using the local MiniLM embedding model and the existing pgvector
+# table (384 dimensions), so no Azure embedding deployment is required.
+#
+# No temperature is set here: reasoning models such as gpt-5.1 do not accept it.
+# If you use gpt-4.1 and want the old deterministic sampling, add
+# spring.ai.openai.chat.temperature: 0.2.
+spring:
+  ai:
+    openai:
+      base-url: ${AZURE_OPENAI_ENDPOINT}
+      api-key: ${AZURE_OPENAI_API_KEY}
+      microsoft-foundry: true
+      chat:
+        model: ${AZURE_CHAT_DEPLOYMENT:gpt-4.1}
+        microsoft-deployment-name: ${AZURE_CHAT_DEPLOYMENT:gpt-4.1}
+
+embabel:
+  models:
+    default-llm: ${AZURE_CHAT_DEPLOYMENT:gpt-4.1}
+  agent:
+    platform:
+      models:
+        openai:
+          custom:
+            base-url: ${AZURE_OPENAI_ENDPOINT}
+            api-key: ${AZURE_OPENAI_API_KEY}
+            models: ${AZURE_CHAT_DEPLOYMENT:gpt-4.1}
+            max-attempts: 1
+            backoff-millis: 200
