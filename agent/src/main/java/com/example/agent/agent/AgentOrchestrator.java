@@ -2,7 +2,6 @@ package com.example.agent.agent;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -10,13 +9,9 @@ import java.util.concurrent.TimeUnit;
 
 import com.example.agent.core.AgentTrace;
 import com.example.agent.core.ConversationId;
-import com.example.agent.core.PromptSafety;
+import com.example.agent.temporal.AgentRunSupport;
+import com.example.agent.temporal.AgentStepExecutor;
 
-import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.MessageType;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -31,30 +26,24 @@ public class AgentOrchestrator {
     private static final int MAX_REVISIONS = 2;
 
     private final PlannerAgent planner;
-    private final ResearchAgent researcher;
-    private final AnalystAgent analyst;
+    private final AgentStepExecutor stepExecutor;
     private final WriterAgent writer;
     private final CriticAgent critic;
-    private final ChatMemory chatMemory;
-    private final int maxPlanSteps;
+    private final AgentRunSupport support;
     private final boolean parallel;
 
     public AgentOrchestrator(
             PlannerAgent planner,
-            ResearchAgent researcher,
-            AnalystAgent analyst,
+            AgentStepExecutor stepExecutor,
             WriterAgent writer,
             CriticAgent critic,
-            ChatMemory chatMemory,
-            @Value("${agent.agents.max-plan-steps:4}") int maxPlanSteps,
+            AgentRunSupport support,
             @Value("${agent.agents.parallel:false}") boolean parallel) {
         this.planner = planner;
-        this.researcher = researcher;
-        this.analyst = analyst;
+        this.stepExecutor = stepExecutor;
         this.writer = writer;
         this.critic = critic;
-        this.chatMemory = chatMemory;
-        this.maxPlanSteps = Math.max(1, maxPlanSteps);
+        this.support = support;
         this.parallel = parallel;
     }
 
@@ -67,7 +56,7 @@ public class AgentOrchestrator {
         String task = request.task().trim();
         AgentTrace trace = new AgentTrace(conversationId);
         trace.event("plan_requested", "orchestrator", "Task: " + AgentSupport.truncate(task, 500), null, null);
-        return normalizePlan(planner.plan(buildGoal(conversationId, task), trace));
+        return support.normalizePlan(planner.plan(support.buildGoal(conversationId, task), trace));
     }
 
     public AgentRunResponse run(AgentRequest request) {
@@ -80,11 +69,11 @@ public class AgentOrchestrator {
         AgentTrace trace = new AgentTrace(conversationId);
         trace.event("run_started", "orchestrator", "Task: " + AgentSupport.truncate(task, 500), null, null);
 
-        String goal = buildGoal(conversationId, task);
+        String goal = support.buildGoal(conversationId, task);
         boolean approvedPlan = request.approvedPlan() != null;
         AgentPlan plan = approvedPlan
-                ? normalizePlan(request.approvedPlan())
-                : normalizePlan(planner.plan(goal, trace));
+                ? support.normalizePlan(request.approvedPlan())
+                : support.normalizePlan(planner.plan(goal, trace));
         if (approvedPlan) {
             trace.event("plan_approved", "orchestrator", "Using the plan approved by the user", plan.summary(), null);
         }
@@ -96,7 +85,7 @@ public class AgentOrchestrator {
 
         String finalAnswer = reviewAndRevise(goal, draft, results, trace);
 
-        remember(conversationId, task, finalAnswer);
+        support.remember(conversationId, task, finalAnswer);
         trace.event("run_completed", "orchestrator", "Multi-agent run completed", null, null);
         return new AgentRunResponse(conversationId, finalAnswer, plan, trace.events(), trace.toolCalls());
     }
@@ -138,7 +127,7 @@ public class AgentOrchestrator {
             trace.event("delegation", "orchestrator",
                     "Step %d -> %s".formatted(stepNumber, step.agent()), step.instruction(), null);
 
-            String output = dispatch(step, results, trace, goal);
+            String output = stepExecutor.execute(step, results, trace, goal);
             long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
             results.add(new StepResult(step.agent(), step.instruction(), output));
             recordStepResult(trace, step, output, durationMs);
@@ -163,7 +152,7 @@ public class AgentOrchestrator {
                         "Step %d -> %s (parallel)".formatted(stepNumber, step.agent()), step.instruction(), null);
                 futures.add(pool.submit(() -> {
                     long start = System.nanoTime();
-                    String output = dispatch(step, noPriorResults, trace, goal);
+                    String output = stepExecutor.execute(step, noPriorResults, trace, goal);
                     long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
                     recordStepResult(trace, step, output, durationMs);
                     return new StepResult(step.agent(), step.instruction(), output);
@@ -188,66 +177,8 @@ public class AgentOrchestrator {
         }
     }
 
-    private String dispatch(PlanStep step, List<StepResult> priorResults, AgentTrace trace, String goal) {
-        return switch (step.agent()) {
-            case "ANALYST" -> analyst.run(goal, step.instruction(), priorResults, trace);
-            case "WRITER" -> writer.run(goal, step.instruction(), priorResults, trace);
-            default -> researcher.run(goal, step.instruction(), priorResults, trace);
-        };
-    }
-
     private static void recordStepResult(AgentTrace trace, PlanStep step, String output, long durationMs) {
         trace.event("agent_result", step.agent(), AgentSupport.summarize(output, 200),
                 AgentSupport.truncate(output, 4000), durationMs);
-    }
-
-    private AgentPlan normalizePlan(AgentPlan plan) {
-        if (plan == null) {
-            plan = new AgentPlan("Plan created from the task.", List.of());
-        }
-        List<PlanStep> steps = plan.steps().stream()
-                .filter(Objects::nonNull)
-                .filter(step -> StringUtils.hasText(step.instruction()))
-                .limit(maxPlanSteps)
-                .map(step -> new PlanStep(
-                        AgentSupport.normalizeAgent(step.agent()),
-                        step.instruction().trim()))
-                .toList();
-
-        if (steps.isEmpty()) {
-            steps = List.of(new PlanStep("RESEARCHER",
-                    "Gather the facts and tool data needed to answer the task."));
-        }
-
-        String summary = StringUtils.hasText(plan.summary())
-                ? plan.summary().trim()
-                : "Planner produced a task plan.";
-        return new AgentPlan(summary, steps);
-    }
-
-    private String buildGoal(String conversationId, String task) {
-        List<Message> messages = chatMemory.get(conversationId).stream()
-                .filter(message -> message.getMessageType() == MessageType.USER
-                        || message.getMessageType() == MessageType.ASSISTANT)
-                .filter(message -> StringUtils.hasText(message.getText()))
-                .toList();
-        if (messages.isEmpty()) {
-            return task;
-        }
-
-        List<Message> recent = messages.subList(Math.max(0, messages.size() - 6), messages.size());
-        StringBuilder goal = new StringBuilder("Recent conversation:\n");
-        for (Message message : recent) {
-            goal.append(message.getMessageType() == MessageType.USER ? "User: " : "Assistant: ")
-                    .append(AgentSupport.truncate(message.getText().replaceAll("\\s+", " ").strip(), 600))
-                    .append('\n');
-        }
-        return PromptSafety.data(goal.toString().trim())
-                + "\n\nCurrent task: " + task;
-    }
-
-    private void remember(String conversationId, String task, String answer) {
-        chatMemory.add(conversationId,
-                List.of(new UserMessage(task), new AssistantMessage(answer)));
     }
 }

@@ -44,6 +44,19 @@ spring:
         enabled: false
         annotation-scanner:
           enabled: false
+  # Temporal durable transfer runs (temporal-durable-agent-poc.md, phase 3). The dev
+  # server is started with `temporal server start-dev`; without a reachable server
+  # the app still starts, the worker just retries the connection in the background.
+  temporal:
+    connection:
+      target: ${TEMPORAL_TARGET:127.0.0.1:7233}
+    namespace: ${TEMPORAL_NAMESPACE:default}
+    workers:
+      - task-queue: transfer-run
+        workflow-classes:
+          - com.example.bank.temporal.TransferWorkflowImpl
+        activity-beans:
+          - transferActivities
 
 bank:
   auth:
@@ -98,6 +111,10 @@ bank:
     vector-store-file: ${BANK_RAG_VECTOR_STORE_FILE:data/bank-vector-store.json}
     classpath-docs-location: classpath*:knowledge/**
     uploads-directory: ${BANK_UPLOADS_DIR:data/uploads}
+  temporal:
+    run:
+      task-queue: ${BANK_TEMPORAL_TASK_QUEUE:transfer-run}
+      execution-timeout: ${BANK_TEMPORAL_EXECUTION_TIMEOUT:1h}
 
 logging:
   level:

@@ -18,6 +18,18 @@ spring:
         repository:
           jdbc:
             initialize-schema: always
+      # Keep prompt/completion content out of traces and logs; enable only for a
+      # local demo with synthetic data.
+      observations:
+        log-prompt: false
+        log-completion: false
+      client:
+        observations:
+          log-prompt: false
+          log-completion: false
+    tools:
+      observations:
+        include-content: false
     model:
       embedding: transformers
     embedding:
@@ -33,6 +45,33 @@ spring:
         enabled: false
         annotation-scanner:
           enabled: false
+  # Temporal durable agent runs (temporal-durable-agent-poc.md). The dev server is
+  # started with `temporal server start-dev`; without a reachable server the app
+  # still starts, the worker just retries the connection in the background.
+  temporal:
+    connection:
+      target: ${TEMPORAL_TARGET:127.0.0.1:7233}
+    namespace: ${TEMPORAL_NAMESPACE:default}
+    workers:
+      - task-queue: agent-run
+        workflow-classes:
+          - com.example.agent.temporal.AgentRunWorkflowImpl
+        activity-beans:
+          - agentRunActivities
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  tracing:
+    sampling:
+      probability: 0.2
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
 
 agent:
   mcp:
@@ -55,6 +94,16 @@ agent:
     chunk-size: ${AGENT_RAG_CHUNK_SIZE:800}
     vector-store-file: ${AGENT_RAG_VECTOR_STORE_FILE:data/agent-vector-store.json}
     classpath-docs-location: classpath*:knowledge/**/*
+  temporal:
+    demo:
+      # Artificial per-step delay used only by the crash demo (scripts/temporal-crash-demo.sh).
+      # 0 disables it.
+      step-delay: ${AGENT_TEMPORAL_STEP_DELAY:0s}
+    run:
+      task-queue: ${AGENT_TEMPORAL_TASK_QUEUE:agent-run}
+      execution-timeout: ${AGENT_TEMPORAL_EXECUTION_TIMEOUT:2h}
+      # Step-level timeouts (start-to-close 5m, heartbeat 15s, max 3 attempts) are set
+      # on the activity stub in AgentRunWorkflowImpl.
 
 logging:
   level:

@@ -3,6 +3,8 @@ package com.example.agent.agent;
 import java.util.List;
 
 import com.example.agent.core.AgentTrace;
+import com.example.agent.temporal.AgentRunSupport;
+import com.example.agent.temporal.AgentStepExecutor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -50,7 +52,8 @@ class AgentOrchestratorApprovalTests {
                 .thenReturn(new Review(true, "Ready", List.of()));
 
         AgentOrchestrator orchestrator = new AgentOrchestrator(
-                planner, researcher, analyst, writer, critic, chatMemory, 4, false);
+                planner, new AgentStepExecutor(researcher, analyst, writer), writer, critic,
+                new AgentRunSupport(chatMemory, 4), false);
 
         AgentRunResponse response = orchestrator.run(new AgentRequest("do research", "chat-1", approved));
 
@@ -72,7 +75,8 @@ class AgentOrchestratorApprovalTests {
                 .thenReturn(new Review(false, "Needs work", List.of("Add a concrete number")));
 
         AgentOrchestrator orchestrator = new AgentOrchestrator(
-                planner, researcher, analyst, writer, critic, chatMemory, 4, false);
+                planner, new AgentStepExecutor(researcher, analyst, writer), writer, critic,
+                new AgentRunSupport(chatMemory, 4), false);
 
         AgentRunResponse response = orchestrator.run(new AgentRequest("task", "chat-1", null));
 
@@ -89,7 +93,8 @@ class AgentOrchestratorApprovalTests {
                 new AgentPlan("Fresh plan", List.of(new PlanStep("RESEARCHER", "Find facts"))));
 
         AgentOrchestrator orchestrator = new AgentOrchestrator(
-                planner, researcher, analyst, writer, critic, chatMemory, 4, false);
+                planner, new AgentStepExecutor(researcher, analyst, writer), writer, critic,
+                new AgentRunSupport(chatMemory, 4), false);
 
         AgentPlan plan = orchestrator.plan(new AgentRequest("task", "chat-1", null));
 

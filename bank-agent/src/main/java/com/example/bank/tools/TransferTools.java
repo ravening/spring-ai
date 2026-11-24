@@ -39,12 +39,14 @@ public class TransferTools {
             @ToolParam(description = "Currency code matching both accounts, e.g. EUR or USD", required = false) String currency,
             @ToolParam(description = "Optional payment reference", required = false) String note,
             @ToolParam(description = "Injected from the tool context; do not set manually.", required = false) String userId,
-            @ToolParam(description = "Injected from the tool context; do not set manually.", required = false) String conversationId) {
+            @ToolParam(description = "Injected from the tool context; do not set manually.", required = false) String conversationId,
+            @ToolParam(description = "Optional idempotency key for the transfer. The durable Temporal transfer workflow passes a stable key; the immediate chat path leaves it blank.", required = false) String idempotencyKey) {
 
         try {
             rateLimiter.check("transfers", userId, rateLimitProperties.transfersPerMinute());
             TransferResult result = transfers.transfer(userId, fromAccountId, toUserId, toAccountId,
-                    amount, currency, note, null);
+                    amount, currency, note,
+                    idempotencyKey == null || idempotencyKey.isBlank() ? null : idempotencyKey);
             String value = result.amount().setScale(2, RoundingMode.HALF_UP).toPlainString() + " " + result.currency();
             return PromptSafety.data("Transfer completed.\n"
                     + "Transaction: " + result.txnId() + "\n"
