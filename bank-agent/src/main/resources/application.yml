@@ -44,9 +44,8 @@ spring:
         enabled: false
         annotation-scanner:
           enabled: false
-  # Temporal durable transfer runs (temporal-durable-agent-poc.md, phase 3). The dev
-  # server is started with `temporal server start-dev`; without a reachable server
-  # the app still starts, the worker just retries the connection in the background.
+  # Temporal durable transfer runs (temporal-durable-agent-poc.md, phase 3). Start the
+  # dev server with `temporal server start-dev` (UI on http://localhost:8233).
   temporal:
     connection:
       target: ${TEMPORAL_TARGET:127.0.0.1:7233}
