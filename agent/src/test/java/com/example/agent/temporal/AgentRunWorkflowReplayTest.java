@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 class AgentRunWorkflowReplayTest {
 
     @Test
-    void workflowReplaysFromRecordedHistory() {
+    void workflowReplaysFromRecordedHistory() throws Exception {
         TestWorkflowEnvironment testEnv = TestWorkflowEnvironment.newInstance(
                 TestEnvironmentOptions.newBuilder().setUseTimeskipping(false).build());
         try {
