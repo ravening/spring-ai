@@ -2,9 +2,9 @@ package com.example.bank.temporal;
 
 import java.time.Duration;
 
+import io.temporal.api.enums.v1.WorkflowIdReusePolicy;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
-import io.temporal.enums.WorkflowIdReusePolicy;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
