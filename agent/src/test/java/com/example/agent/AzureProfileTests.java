@@ -22,7 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.datasource.url=jdbc:h2:mem:agent-azure-test;DB_CLOSE_DELAY=-1",
         "agent.mcp.enabled=false",
         "agent.rag.enabled=false",
-        "agent.rag.vector-store-file=target/test-agent-vector-store-azure.json"
+        "agent.rag.vector-store-file=target/test-agent-vector-store-azure.json",
+        // No Temporal server in tests: create the client but do not start workers.
+        "spring.temporal.start-workers=false"
 })
 class AzureProfileTests {
 

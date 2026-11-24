@@ -2,21 +2,22 @@ package com.example.agent.temporal;
 
 import java.util.List;
 
+import com.example.agent.api.ApiExceptionHandler;
+
 import io.temporal.client.WorkflowExecutionAlreadyStarted;
 import io.temporal.client.WorkflowNotFoundException;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,14 +27,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(AgentRunController.class)
+/** MockMvc tests for the durable-run REST API with a mocked AgentRunService. */
 class AgentRunControllerTest {
 
-    @Autowired
+    private AgentRunService runService;
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private AgentRunService runService;
+    @BeforeEach
+    void setUp() {
+        runService = mock(AgentRunService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new AgentRunController(runService))
+                .setControllerAdvice(new ApiExceptionHandler())
+                .build();
+    }
 
     @Test
     void startReturns202WithLocation() throws Exception {

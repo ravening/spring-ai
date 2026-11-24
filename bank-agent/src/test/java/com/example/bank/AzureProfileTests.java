@@ -24,7 +24,9 @@ import static org.assertj.core.api.Assertions.assertThat;
         "bank.mcp.enabled=false",
         "bank.jobs.enabled=false",
         "bank.voice.enabled=false",
-        "bank.rag.vector-store-file=target/test-bank-vector-store-azure.json"
+        "bank.rag.vector-store-file=target/test-bank-vector-store-azure.json",
+        // No Temporal server in tests: create the client but do not start workers.
+        "spring.temporal.start-workers=false"
 })
 class AzureProfileTests {
 
