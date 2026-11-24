@@ -27,11 +27,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * Workflow tests against an in-process Temporal test server with a mocked activity
@@ -84,13 +85,13 @@ class AgentRunWorkflowTest {
     void failingStepIsRetriedAndEarlierStepsAreNotReExecuted() {
         stubHappyPath(3);
         AtomicInteger stepTwoAttempts = new AtomicInteger();
-        when(activities.executeStep(any())).thenAnswer(invocation -> {
+        doAnswer(invocation -> {
             StepExecution execution = invocation.getArgument(0);
             if (execution.index() == 1 && stepTwoAttempts.incrementAndGet() <= 2) {
                 throw new RuntimeException("transient provider error");
             }
             return new StepOutcome("out-" + execution.index(), List.of(), List.of(), 5, 1);
-        });
+        }).when(activities).executeStep(any());
 
         AgentRunWorkflow workflow = start(input("run-retry", false));
         String result = WorkflowStub.fromTyped(workflow).getResult(String.class);
@@ -105,13 +106,13 @@ class AgentRunWorkflowTest {
     @Test
     void nonRetryableFailureFailsWorkflowWithoutRunningLaterSteps() {
         stubHappyPath(3);
-        when(activities.executeStep(any())).thenAnswer(invocation -> {
+        doAnswer(invocation -> {
             StepExecution execution = invocation.getArgument(0);
             if (execution.index() == 0) {
                 throw new IllegalArgumentException("task is invalid");
             }
             return new StepOutcome("out-" + execution.index(), List.of(), List.of(), 5, 1);
-        });
+        }).when(activities).executeStep(any());
 
         AgentRunWorkflow workflow = start(input("run-fail", false));
 
@@ -165,11 +166,11 @@ class AgentRunWorkflowTest {
     void duplicateApprovalSignalIsHarmless() throws Exception {
         stubHappyPath(2);
         CountDownLatch stepGate = new CountDownLatch(1);
-        when(activities.executeStep(any())).thenAnswer(invocation -> {
+        doAnswer(invocation -> {
             stepGate.await(30, TimeUnit.SECONDS);
             StepExecution execution = invocation.getArgument(0);
             return new StepOutcome("out-" + execution.index(), List.of(), List.of(), 5, 1);
-        });
+        }).when(activities).executeStep(any());
 
         AgentRunWorkflow workflow = start(input("run-dup", true));
         awaitView(workflow, v -> v.status() == RunStatus.WAITING_APPROVAL);
@@ -187,13 +188,13 @@ class AgentRunWorkflowTest {
     void queryDuringStepReportsCurrentAndLastCompletedStep() throws Exception {
         stubHappyPath(3);
         CountDownLatch stepGate = new CountDownLatch(1);
-        when(activities.executeStep(any())).thenAnswer(invocation -> {
+        doAnswer(invocation -> {
             StepExecution execution = invocation.getArgument(0);
             if (execution.index() == 2) {
                 stepGate.await(30, TimeUnit.SECONDS);
             }
             return new StepOutcome("out-" + execution.index(), List.of(), List.of(), 5, 1);
-        });
+        }).when(activities).executeStep(any());
 
         AgentRunWorkflow workflow = start(input("run-query", false));
         AgentRunView during = awaitView(workflow, v -> v.currentStep() == 3
@@ -215,15 +216,16 @@ class AgentRunWorkflowTest {
         for (int i = 0; i < stepCount; i++) {
             planSteps.add(new PlanStep("RESEARCHER", "Step " + (i + 1)));
         }
-        when(activities.prepare(any()))
-                .thenReturn(new PreparedRun("goal", new AgentPlan("plan", List.copyOf(planSteps))));
-        when(activities.executeStep(any())).thenAnswer(invocation -> {
+        // doReturn/doAnswer: re-stubbing with when() would invoke the previous answer with null.
+        doReturn(new PreparedRun("goal", new AgentPlan("plan", List.copyOf(planSteps))))
+                .when(activities).prepare(any());
+        doAnswer(invocation -> {
             StepExecution execution = invocation.getArgument(0);
             return new StepOutcome("out-" + execution.index(), List.of(), List.of(), 5, 1);
-        });
-        when(activities.write(any())).thenReturn(new DraftOutcome("draft", List.of()));
-        when(activities.review(any()))
-                .thenReturn(new ReviewOutcome(new Review(true, "ok", List.of()), List.of()));
+        }).when(activities).executeStep(any());
+        doReturn(new DraftOutcome("draft", List.of())).when(activities).write(any());
+        doReturn(new ReviewOutcome(new Review(true, "ok", List.of()), List.of()))
+                .when(activities).review(any());
     }
 
     private AgentRunWorkflow start(AgentRunInput input) {
