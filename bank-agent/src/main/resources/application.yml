@@ -44,6 +44,22 @@ spring:
         enabled: false
         annotation-scanner:
           enabled: false
+  # Temporal durable transfer runs (temporal-durable-agent-poc.md, phase 3). Start the
+  # dev server with `temporal server start-dev` (UI on http://localhost:8233).
+  temporal:
+    connection:
+      target: ${TEMPORAL_TARGET:127.0.0.1:7233}
+    namespace: ${TEMPORAL_NAMESPACE:default}
+    # SDK 1.41 starts workers on ApplicationReadyEvent and fails startup when the
+    # server is unreachable. Set TEMPORAL_START_WORKERS=false to boot without a
+    # Temporal server (run submission will then fail with 500 until one is up).
+    start-workers: ${TEMPORAL_START_WORKERS:true}
+    workers:
+      - task-queue: transfer-run
+        workflow-classes:
+          - com.example.bank.temporal.TransferWorkflowImpl
+        activity-beans:
+          - transferActivities
 
 bank:
   auth:
@@ -98,6 +114,10 @@ bank:
     vector-store-file: ${BANK_RAG_VECTOR_STORE_FILE:data/bank-vector-store.json}
     classpath-docs-location: classpath*:knowledge/**
     uploads-directory: ${BANK_UPLOADS_DIR:data/uploads}
+  temporal:
+    run:
+      task-queue: ${BANK_TEMPORAL_TASK_QUEUE:transfer-run}
+      execution-timeout: ${BANK_TEMPORAL_EXECUTION_TIMEOUT:1h}
 
 logging:
   level:

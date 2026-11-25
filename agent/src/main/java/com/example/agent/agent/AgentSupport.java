@@ -5,12 +5,13 @@ import java.util.Locale;
 
 import com.example.agent.core.PromptSafety;
 
-final class AgentSupport {
+/** Shared prompt-formatting helpers. Public so the Temporal run support can reuse them. */
+public final class AgentSupport {
 
     private AgentSupport() {
     }
 
-    static String normalizeAgent(String raw) {
+    public static String normalizeAgent(String raw) {
         if (raw == null) {
             return "RESEARCHER";
         }
@@ -21,7 +22,7 @@ final class AgentSupport {
         };
     }
 
-    static String priorResults(List<StepResult> results) {
+    public static String priorResults(List<StepResult> results) {
         if (results == null || results.isEmpty()) {
             return "(none)";
         }
@@ -35,7 +36,7 @@ final class AgentSupport {
         return PromptSafety.data(builder.toString().trim());
     }
 
-    static String summarize(String value, int maxLength) {
+    public static String summarize(String value, int maxLength) {
         if (value == null || value.isBlank()) {
             return "(no output)";
         }
@@ -43,7 +44,7 @@ final class AgentSupport {
         return truncate(oneLine, maxLength);
     }
 
-    static String truncate(String value, int maxLength) {
+    public static String truncate(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
             return value;
         }

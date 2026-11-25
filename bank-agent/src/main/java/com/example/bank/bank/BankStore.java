@@ -205,7 +205,8 @@ public class BankStore {
         }
     }
 
-    private Optional<TransferResult> findByIdempotencyKey(String key) {
+    /** Public so the Temporal reconcile activity can look up a transfer by idempotency key. */
+    public Optional<TransferResult> findByIdempotencyKey(String key) {
         if (key == null || key.isBlank()) {
             return Optional.empty();
         }

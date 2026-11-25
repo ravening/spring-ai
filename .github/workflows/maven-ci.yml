@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  maven:
+    name: mvn verify (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Maven modules of this repo (bank-agent-mobile is an Expo app, not Maven).
+        module: [agent, bank-agent, chat, embabel-stock-agent]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build and test ${{ matrix.module }}
+        working-directory: ${{ matrix.module }}
+        run: mvn -B -ntp verify
